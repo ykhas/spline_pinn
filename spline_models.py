@@ -346,7 +346,7 @@ def interpolate_wave_states(old_hidden_states,new_hidden_states,offset,dt=1,orde
 	
 	return z,grad_z,laplace_z,v,a
 
-# interpolate hidden_states for wave equation (separate z and v fields)
+# interpolate hidden_states in time for wave equation (separate z and v fields)
 def interpolate_wave_states_2(old_hidden_states,new_hidden_states,offset,dt=1,orders_z=[1,1]):
 	"""
 	:old_hidden_states: old hidden states (size: bs x (v_size+p_size) x w x h)
@@ -380,44 +380,6 @@ def interpolate_wave_states_2(old_hidden_states,new_hidden_states,offset,dt=1,or
 	a = (new_v-old_v)/dt
 	
 	return z,grad_z,laplace_z,dz_dt,v,a
-
-def superres_states(old_hidden_states,new_hidden_states,offset,dt=1,orders_v=[2,2],orders_p=[0,0],resolution_factor=1):#is not used... => remove
-	"""
-	:old_hidden_states: old hidden states (size: bs x (v_size+p_size) x w x h)
-	:new_hidden_states: new hidden states (size: bs x (v_size+p_size) x w x h)
-	:offset: offset in time direction (value between 0 and 1)
-	:dt: delta time between old and new hidden states
-	:orders_v: spline orders for vector potential of velocity field in x and y direction
-	:orders_p: spline orders for pressure field in x and y direction
-	:resolution_factor: superresolution factor
-	:return: superresolution fields for:
-		:a_z: vector potential
-		:v: veloctiy field
-		:dv_dt: time derivative of velocity field
-		:grad_v: gradient of velocity field
-		:laplace_v: laplacian of velocity field
-		:p: pressure field
-		:grad_p: gradient of pressure field
-	"""
-	v_size = np.prod([i+1 for i in orders_v])
-	
-	old_a_z,old_v,old_grad_v,old_laplace_v = superres_2d_velocity(old_hidden_states[:,:v_size],orders_v,resolution_factor)
-	new_a_z,new_v,new_grad_v,new_laplace_v = superres_2d_velocity(new_hidden_states[:,:v_size],orders_v,resolution_factor)
-	
-	old_p,old_grad_p = superres_2d_pressure(old_hidden_states[:,v_size:],orders_p,resolution_factor)
-	new_p,new_grad_p = superres_2d_pressure(new_hidden_states[:,v_size:],orders_p,resolution_factor)
-	
-	# time is interpolated linearly
-	a_z = (1-offset)*old_a_z + offset*new_a_z
-	v = (1-offset)*old_v + offset*new_v
-	grad_v = (1-offset)*old_grad_v + offset*new_grad_v
-	laplace_v = (1-offset)*old_laplace_v + offset*new_laplace_v
-	p = (1-offset)*old_p + offset*new_p
-	grad_p = (1-offset)*old_grad_p + offset*new_grad_p
-	
-	dv_dt = (new_v - old_v)/dt
-	
-	return a_z,v,dv_dt,grad_v,laplace_v,p,grad_p
 
 def interpolate_2d_velocity(weights,offsets,orders=[2,2]):
 	"""
@@ -618,6 +580,7 @@ def interpolate_2d_wave(weights,offsets,orders=[1,1]):
 #  superresolution with strided convolution
 def superres_2d_wave(weights,orders=[1,1],resolution_factor=1):
 	"""
+	weights: tensor of size 1 x num_polynomials x 
 	:return: z,grad_z,laplace_z,v,a
 	"""
 	res_key = f"{resolution_factor}, orders: {orders}"
@@ -633,20 +596,17 @@ def superres_2d_wave(weights,orders=[1,1],resolution_factor=1):
 				kernels = toCuda(torch.zeros(1,1+2+1+1+1,2,(orders[0]+1),(orders[1]+1),2,2))
 				for l in range(orders[0]+1):
 					for m in range(orders[1]+1):
-						kernels[0:1,0:1,0,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+						kernel_l_m_order_vals = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+						kernels[0:1,0:1,0,l,m,:,:] = kernel_l_m_order_vals
+						kernels[0:1,4:5,1,l,m,:,:] = kernel_l_m_order_vals
+						kernels[0:1,5:6,0,l,m,:,:] = -6*kernel_l_m_order_vals
+						kernels[0:1,5:6,1,l,m,:,:] = -4*kernel_l_m_order_vals
 				
 				# gradients of z_value
 				kernels[0:1,1:3,0,:,:,:,:] = grad(kernels[0:1,0:1,0,:,:,:,:],offsets,create_graph=True,retain_graph=True)
 				
 				# laplace of z_value
 				kernels[0:1,3:4,0,:,:,:,:] = div(kernels[0:1,1:3],offsets,retain_graph=False)
-				
-				#v and a
-				for l in range(orders[0]+1):
-					for m in range(orders[1]+1):
-						kernels[0:1,4:5,1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
-						kernels[0:1,5:6,0,l,m,:,:] = -6*p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
-						kernels[0:1,5:6,1,l,m,:,:] = -4*p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
 				
 				kernels = kernels.reshape(1,1+2+1+1+1,2*(orders[0]+1)*(orders[1]+1),2,2).detach()
 			
