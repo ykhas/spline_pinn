@@ -129,5 +129,6 @@ for epoch in range(params.load_index,params.n_epochs):
 			logger.log(f"loss_boundary",torch.mean(loss_boundary).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			
 	if params.log:
-		logger.save_state(model,optimizer,epoch+1)
+		x = 1
+		#logger.save_state(model,optimizer,epoch+1)
 		
