@@ -19,14 +19,16 @@ class TestDataSet(unittest.TestCase):
 
         first_items_copy = copy.deepcopy(dataset.__getitem__(0))
 
-        fake_item = torch.ones(domain_width)
+        # fake_item = torch.ones(domain_width)
         fake_state = torch.ones(domain_width - 1)
-        dataset.update_items(0, fake_item, fake_item, fake_state)
+        # dataset.update_items(0, fake_item, fake_item, fake_state)
+        dataset.update_items(0, fake_state)
 
         first_items_real = next(data_iterable)
 
-        for real_item, copy_item in zip(first_items_copy, first_items_real):
-            self.assertFalse(torch.equal(real_item, copy_item))
+        # for real_item, copy_item in zip(first_items_copy, first_items_real):
+        #     self.assertFalse(torch.equal(real_item, copy_item))
+        self.assertFalse(torch.equal(first_items_real[2], fake_state))
 
     def test_dataset_phase(self):
         torch.manual_seed(0)
@@ -48,7 +50,11 @@ class TestDataSet(unittest.TestCase):
         dataset = WaveDataset(10, num_hidden_state_dataset_size=5)
         self.assertTrue(torch.equal(
             dataset.boundary_values, expected_boundary_values))
-
+        
+        # now we test that when we propagate the time, the tensor is not the same
+        dataset.evolve_boundary()
+        self.assertFalse(torch.equal(
+            dataset.boundary_values, expected_boundary_values))
 
 class TestUtils:
     @staticmethod
