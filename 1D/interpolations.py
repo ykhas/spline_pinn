@@ -133,6 +133,7 @@ class KernelValuesHolder():
     self.num_kernels = order -1
     self.xvals, self.kernels = generate_kernels(num_kernel_support_points, order)
     self.gradients = self.__get_gradient(self.xvals, self.kernels, self.num_kernels, self.num_kernel_support_points)
+    self.laplacian = self.__get_gradient(self.xvals, self.gradients, self.num_kernels, self.num_kernel_support_points)
   
   def __get_gradient(self, xvals, kernels, num_kernels, num_kernel_support_points):
     gradients = torch.empty(num_kernels, 1, num_kernel_support_points, dtype = torch.float64)
