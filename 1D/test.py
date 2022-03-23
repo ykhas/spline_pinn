@@ -97,21 +97,21 @@ class TestKernelValuesHolder(unittest.TestCase):
         self.assertFalse(failed)
     
 
-class TestTrainModel(unittest.TestCase):
-    def test_train_iteration(self):
-      model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
-      dataset = WaveDataset(domain_width)
-      loss_calc = Loss_Calculator(0.1, 0.5)
-      train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
+# class TestTrainModel(unittest.TestCase):
+#     def test_train_iteration(self):
+#       model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
+#       dataset = WaveDataset(domain_width)
+#       loss_calc = Loss_Calculator(0.1, 0.5)
+#       train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
 
 
 if __name__ == "__main__":
-    # unittest.main()
+    unittest.main()
 
     # to run with debugger, comment above line and uncomment the two below.
     # model_train_test = TestTrainModel()
     # model_train_test.test_train_iteration()
     # dataset_test = TestDataSet()
     # dataset_test.test_dataset_phase()
-    kernel_test = TestKernelValuesHolder()
-    kernel_test.test_kernel_values_even_support()
+    # kernel_test = TestKernelValuesHolder()
+    # kernel_test.test_kernel_values_even_support()
