@@ -1,6 +1,7 @@
 from dataset import WaveDataset
 from wave_train_1D import WaveModel, Loss_Calculator, train
 from torch.utils.data import DataLoader
+from interpolations import KernelValuesHolder
 import torch.nn.functional as F
 import torch
 import copy
@@ -9,7 +10,6 @@ import unittest
 
 domain_width = 200
 
-
 class TestDataSet(unittest.TestCase):
     def test_dataset_change(self):
         dataset = WaveDataset(domain_width)
@@ -17,7 +17,7 @@ class TestDataSet(unittest.TestCase):
 
         data_iterable = iter(dataloader)
 
-        first_items_copy = copy.deepcopy(dataset.__getitem__(0))
+        # first_items_copy = copy.deepcopy(dataset.__getitem__(0))
 
         # fake_item = torch.ones(domain_width)
         fake_state = torch.ones(domain_width - 1)
@@ -66,7 +66,8 @@ class TestUtils:
         # emitter is in the middle, zeros elsewhere
         z_emitter_mask = F.pad(torch.ones(
             1, 1, 4), (domain_width // 2 - 2, domain_width // 2 - 2), value=0)
-        hidden_state = torch.randn(1, 5, domain_width - 1)
+        
+        hidden_state = torch.randn(1, model.num_kernels, domain_width - 1)
         return model, z_boundary_cond, z_emitter_mask, hidden_state
 
 
@@ -75,19 +76,42 @@ class TestForwardModel(unittest.TestCase):
         model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
         model.forward(hidden_state, z_boundary_cond, z_emitter_mask)
 
-# class TestTrainModel(unittest.TestCase):
-    # def test_train_iteration(self):
-    #   model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
-    #   dataset = WaveDataset(domain_width)
-    #   loss_calc = Loss_Calculator(0.1, 0.5)
-    #   train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
+class TestKernelValuesHolder(unittest.TestCase):
+    def test_kernel_values_even_support(self):
+        '''
+        Should be unable to create kernel holder for kernels with even numbers
+        of support points
+        '''
+
+        # check that we can make it with odd amount of support points
+        KernelValuesHolder(11,1)
+        KernelValuesHolder(11,2)
+
+        # now let's verify that we can't make it with even numbers of points
+        failed = True
+        try:
+            KernelValuesHolder(10,1)
+        except ValueError:
+            failed = False
+
+        self.assertFalse(failed)
+    
+
+class TestTrainModel(unittest.TestCase):
+    def test_train_iteration(self):
+      model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
+      dataset = WaveDataset(domain_width)
+      loss_calc = Loss_Calculator(0.1, 0.5)
+      train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
 
     # to run with debugger, comment above line and uncomment the two below.
     # model_train_test = TestTrainModel()
     # model_train_test.test_train_iteration()
     # dataset_test = TestDataSet()
     # dataset_test.test_dataset_phase()
+    kernel_test = TestKernelValuesHolder()
+    kernel_test.test_kernel_values_even_support()

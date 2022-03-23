@@ -115,25 +115,48 @@ def generate_kernels(num_points, order):
     return xvals, kernels(order, xvals).unsqueeze(1) # array with shape (num_kernels, num_points). Also
                                               # insert new rank into tensor to correspond to convolution API
 
-def interpolate_wave(coefficients, kernels):
+def interpolate_kernels(coefficients, kernels):
     '''
     Interpolates a wave function by convolving the coefficients with the hermite spline kernels
     coefficients: Tensor of size (minibatch, num_kernel_types, width)
     kernels: Tensor of size (num_kernel_types, output_waves (usually 1), width)
     '''
     stride = kernels.shape[2] // 2
-    return F.conv_transpose1d(coefficients, kernels, 
+    waves = F.conv_transpose1d(coefficients, kernels, 
          padding = 0, stride = stride, groups=1)
+    return waves[0:1], waves[1:2]
+
+def first_order_time_interpolation(y1, y2, t):
+    return (1 - t) * y1 + t * y2
+
+def interpolate_wave_in_time(old_coefficients_z, new_coefficients_z,
+                        old_coefficients_v, new_coefficients_v, kernels, time_step):
+    old_z, old_laplace_z = interpolate_kernels(old_coefficients_z, kernels)
+    new_z, new_laplace_z = interpolate_kernels(new_coefficients_z, kernels)
+
+    old_v = interpolate_kernels(old_coefficients_v, kernels)[0] 
+    new_v = interpolate_kernels(new_coefficients_v, kernels)[0] 
+    half_t = time_step / 2
+
+    # first order interpolation at middle of time step
+    z = first_order_time_interpolation(old_z, new_z, half_t)
+    laplace_z = first_order_time_interpolation(old_laplace_z, new_laplace_z, half_t)
+    dz_dt = (new_z - old_z) / time_step
+    v = first_order_time_interpolation(old_v, new_v, half_t)
+    a = (new_v - old_v) / time_step 
+
+    return z, laplace_z, dz_dt, v, a
 
 class KernelValuesHolder():
   def __init__(self, num_kernel_support_points, order):
-    if order % 2 == 0:
-      raise Exception("order must be odd")
+    if num_kernel_support_points % 2 == 0:
+      raise ValueError("number of kernel support points must be odd")
     self.num_kernel_support_points = num_kernel_support_points
     self.num_kernels = order -1
-    self.xvals, self.kernels = generate_kernels(num_kernel_support_points, order)
-    self.gradients = self.__get_gradient(self.xvals, self.kernels, self.num_kernels, self.num_kernel_support_points)
-    self.laplacian = self.__get_gradient(self.xvals, self.gradients, self.num_kernels, self.num_kernel_support_points)
+    self.xvals, kernels = generate_kernels(num_kernel_support_points, order)
+    gradients = self.__get_gradient(self.xvals, kernels, self.num_kernels, self.num_kernel_support_points)
+    laplacian = self.__get_gradient(self.xvals, gradients, self.num_kernels, self.num_kernel_support_points)
+    self.kernel_values_and_derivs = torch.cat(kernels, laplacian) # gradients not needed for wave equation
   
   def __get_gradient(self, xvals, kernels, num_kernels, num_kernel_support_points):
     gradients = torch.empty(num_kernels, 1, num_kernel_support_points, dtype = torch.float64)
@@ -143,3 +166,5 @@ class KernelValuesHolder():
                           retain_graph=True,
                           create_graph=True)[0]
     return gradients
+
+    
