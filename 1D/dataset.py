@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 from dataclasses import dataclass
 
 class WaveDataset(Dataset):
-  def __init__(self, width, num_hidden_state_dataset_size=1000, time_step = 0.1):
+  def __init__(self, width, num_kernels, num_hidden_state_dataset_size=1000, time_step = 0.1):
     self.num_hidden_state_dataset_size = num_hidden_state_dataset_size
     self.width = width
     self.time_step = time_step
@@ -12,7 +12,7 @@ class WaveDataset(Dataset):
 
     self.boolean_masks = torch.zeros(num_hidden_state_dataset_size, 1, width)
     self.boundary_values = torch.zeros(num_hidden_state_dataset_size, 1, width)
-    self.hidden_states = torch.zeros(num_hidden_state_dataset_size, width-1)
+    self.hidden_states = torch.zeros(num_hidden_state_dataset_size, num_kernels, width-1)
     self.phases = torch.randn(self.num_hidden_state_dataset_size)
     self.__initialize_boundaries()
 

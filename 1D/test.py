@@ -12,7 +12,8 @@ domain_width = 200
 
 class TestDataSet(unittest.TestCase):
     def test_dataset_change(self):
-        dataset = WaveDataset(domain_width)
+        random_num_kernels = 10
+        dataset = WaveDataset(domain_width, random_num_kernels)
         dataloader = DataLoader(dataset, 100)
 
         data_iterable = iter(dataloader)
@@ -32,6 +33,7 @@ class TestDataSet(unittest.TestCase):
 
     def test_dataset_phase(self):
         torch.manual_seed(0)
+        arbitrary_num_kernels = 10
         expected_boundary_values = torch.tensor([[[0.000000000,  0.000000000,  0.000000000,  0.000000000,  0.000000000,
                                                    0.999556005,  0.999556005,  0.000000000,  0.000000000,  0.000000000]],
 
@@ -47,7 +49,7 @@ class TestDataSet(unittest.TestCase):
                                                  [[0.000000000,  0.000000000,  0.000000000,  0.000000000,  0.000000000,
                                                    -0.884080291, -0.884080291,  0.000000000,  0.000000000,  0.000000000]]])
 
-        dataset = WaveDataset(10, num_hidden_state_dataset_size=5)
+        dataset = WaveDataset(10, arbitrary_num_kernels, num_hidden_state_dataset_size=5)
         self.assertTrue(torch.equal(
             dataset.boundary_values, expected_boundary_values))
         
@@ -76,6 +78,14 @@ class TestForwardModel(unittest.TestCase):
         model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
         model.forward(hidden_state, z_boundary_cond, z_emitter_mask)
 
+    def test_forward_computation2(self):
+        model = WaveModel(2,2)
+        dataset = WaveDataset(10, model.num_kernels, num_hidden_state_dataset_size=5)
+        data_loader = DataLoader(dataset, batch_size=50)
+        datum = next(iter(data_loader))
+        boolean_mask, boundary_value, old_hidden_state = datum
+        model(old_hidden_state, boolean_mask, boundary_value)
+
 class TestKernelValuesHolder(unittest.TestCase):
     def test_kernel_values_even_support(self):
         '''
@@ -99,7 +109,6 @@ class TestKernelValuesHolder(unittest.TestCase):
 
 # class TestTrainModel(unittest.TestCase):
 #     def test_train_iteration(self):
-#       model, z_boundary_cond, z_emitter_mask, hidden_state = TestUtils.generate_sample_state()
 #       dataset = WaveDataset(domain_width)
 #       loss_calc = Loss_Calculator(0.1, 0.5)
 #       train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
@@ -111,6 +120,8 @@ if __name__ == "__main__":
     # to run with debugger, comment above line and uncomment the two below.
     # model_train_test = TestTrainModel()
     # model_train_test.test_train_iteration()
+    # model_forward = TestForwardModel()
+    # model_forward.test_forward_computation2()
     # dataset_test = TestDataSet()
     # dataset_test.test_dataset_phase()
     # kernel_test = TestKernelValuesHolder()
