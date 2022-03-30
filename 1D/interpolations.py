@@ -1,6 +1,7 @@
 import torch
 import math
 import torch.nn.functional as F
+from const import TORCH_DTYPE
 
 def monomial_derivative(order, x, derivative = 0):
     """
@@ -37,7 +38,7 @@ def create_monomial_val_matrix(num_monomials, endpoints):
 
     shape = (num_monomials, num_monomials)
 
-    monomial_vals = torch.empty(shape, dtype=torch.float64)
+    monomial_vals = torch.empty(shape, dtype=TORCH_DTYPE)
     
     def populate_monomial_vals_matrix(support_point_index):
         num_derivative_evals = num_monomials // 2
@@ -76,7 +77,7 @@ def heaviside(x):
     return (torch.sign(x) + 1) / 2
 
 def polynomial(weights, x):
-    y = torch.zeros_like(x, dtype=torch.float64)
+    y = torch.zeros_like(x, dtype=TORCH_DTYPE)
     for order in range(len(weights)):
         y += weights[order] * x ** order
     return y
@@ -94,14 +95,14 @@ def kernel(v, xvals):
 def kernels(spline_order, xvals):
     num_boundary_conditions = (spline_order + 1)
     num_monomials = num_boundary_conditions * 2
-    hermite_values = torch.eye(num_monomials, dtype=torch.float64)
+    hermite_values = torch.eye(num_monomials, dtype=TORCH_DTYPE)
     
     # for hermite, we only ever alter the value / derivative at x=0
     # all other derivatives and values are 0 (i.e. at 1 and -1)
     
     hermite_values = hermite_values[:num_boundary_conditions]
 
-    yvals = torch.empty((num_boundary_conditions, xvals.shape[0]), dtype=torch.float64)
+    yvals = torch.empty((num_boundary_conditions, xvals.shape[0]), dtype=TORCH_DTYPE)
     for index, v in enumerate(hermite_values):
         y = kernel(v,xvals)
         # note that kernels are not normalized - range does not necessarily lie in [-1, 1]
@@ -114,9 +115,9 @@ def total_num_kernels(spline_order):
 def generate_kernels(num_points, highest_spline_order):
     if num_points % 2 == 0:
         raise ValueError("num_points must be odd!")
-    xvals = torch.linspace(-1, 1, num_points, dtype=torch.float64, requires_grad=True)
+    xvals = torch.linspace(-1, 1, num_points, dtype=TORCH_DTYPE, requires_grad=True)
     num_kernels = total_num_kernels(highest_spline_order)
-    all_kernels = torch.empty((num_kernels, num_points), dtype=torch.float64)
+    all_kernels = torch.empty((num_kernels, num_points), dtype=TORCH_DTYPE)
     for i in range(0, highest_spline_order + 1):
         num_kernels_ith_order = total_num_kernels(i)
         num_kernels_prev_order = total_num_kernels(i-1)
@@ -158,7 +159,7 @@ def interpolate_wave_in_time(old_coefficients_z, new_coefficients_z,
     return z, laplace_z, dz_dt, v, a
 
 class KernelValuesHolder():
-  def __init__(self, num_kernel_support_points, order):
+  def __init__(self, num_kernel_support_points, order, device=torch.device('cpu')):
     if num_kernel_support_points % 2 == 0:
       raise ValueError("number of kernel support points must be odd")
     self.num_kernel_support_points = num_kernel_support_points
@@ -166,10 +167,10 @@ class KernelValuesHolder():
     num_kernels = kernels.shape[0]
     gradients = self.__get_gradient(self.xvals, kernels, num_kernels, num_kernel_support_points)
     laplacian = self.__get_gradient(self.xvals, gradients, num_kernels, num_kernel_support_points)
-    self.kernel_values_and_derivs = torch.cat([kernels, laplacian], dim=0) # gradients not needed for wave equation
+    self.kernel_values_and_derivs = torch.cat([kernels, laplacian], dim=0).to(device) # gradients not needed for wave equation
   
   def __get_gradient(self, xvals, kernels, num_kernels, num_kernel_support_points):
-    gradients = torch.empty(num_kernels, 1, num_kernel_support_points, dtype = torch.float64)
+    gradients = torch.empty(num_kernels, 1, num_kernel_support_points, dtype = TORCH_DTYPE)
     for i in range(num_kernels):
       gradients[i,0,:] = torch.autograd.grad(torch.sum(kernels[i]), 
                           inputs=xvals, 

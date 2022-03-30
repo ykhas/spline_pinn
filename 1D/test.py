@@ -83,7 +83,7 @@ class TestForwardModel(unittest.TestCase):
         dataset = WaveDataset(10, model.num_kernels, num_hidden_state_dataset_size=5)
         data_loader = DataLoader(dataset, batch_size=50)
         datum = next(iter(data_loader))
-        boolean_mask, boundary_value, old_hidden_state = datum
+        boolean_mask, boundary_value, old_hidden_state = datum[0:3]
         model(old_hidden_state, boolean_mask, boundary_value)
 
 class TestKernelValuesHolder(unittest.TestCase):
@@ -107,11 +107,10 @@ class TestKernelValuesHolder(unittest.TestCase):
         self.assertFalse(failed)
     
 
-# class TestTrainModel(unittest.TestCase):
-#     def test_train_iteration(self):
-#       dataset = WaveDataset(domain_width)
-#       loss_calc = Loss_Calculator(0.1, 0.5)
-#       train(dataset, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
+class TestTrainModel(unittest.TestCase):
+    def test_train_iteration(self):
+      loss_calc = Loss_Calculator(0.1, 0.5)
+      train(num_grid_points = 200, epochs = 1, n_batches = 1, n_samples = 1, loss_calc=loss_calc)
 
 
 if __name__ == "__main__":

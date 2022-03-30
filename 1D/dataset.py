@@ -2,6 +2,7 @@ from tokenize import Number
 import torch
 from torch.utils.data import Dataset
 from dataclasses import dataclass
+from const import TORCH_DTYPE
 
 class WaveDataset(Dataset):
   def __init__(self, width, num_kernels, num_hidden_state_dataset_size=1000, time_step = 0.1):
@@ -9,10 +10,11 @@ class WaveDataset(Dataset):
     self.width = width
     self.time_step = time_step
     self.emitter_size = 2
+    # self.true_domain_size = width * num_support_points - (width - 2) * (num_support_points // 2)
 
-    self.boolean_masks = torch.zeros(num_hidden_state_dataset_size, 1, width)
-    self.boundary_values = torch.zeros(num_hidden_state_dataset_size, 1, width)
-    self.hidden_states = torch.zeros(num_hidden_state_dataset_size, num_kernels, width-1)
+    self.boolean_masks = torch.zeros(num_hidden_state_dataset_size, 1, width, dtype=TORCH_DTYPE)
+    self.boundary_values = torch.zeros(num_hidden_state_dataset_size, 1, width, dtype=TORCH_DTYPE)
+    self.hidden_states = torch.zeros(num_hidden_state_dataset_size, num_kernels, width-1, dtype=TORCH_DTYPE)
     self.phases = torch.randn(self.num_hidden_state_dataset_size)
     self.__initialize_boundaries()
 
@@ -26,7 +28,7 @@ class WaveDataset(Dataset):
     self.boundary_values[:, 0, self.width//2: self.width // 2 + self.emitter_size] = sinusoids
 
   def reset_hidden_states(self):
-    self.hidden_states = self.hidden_states = torch.zeros(self.num_hidden_state_dataset_size, self.width-1)
+    self.hidden_states[:] = 0
 
   def evolve_boundary(self):
     '''
@@ -37,7 +39,7 @@ class WaveDataset(Dataset):
     self.boundary_values[:, 0, self.width//2: self.width // 2 + self.emitter_size] = sinusoids
 
   def __getitem__(self, idx):
-    return self.boolean_masks[idx], self.boundary_values[idx], self.hidden_states[idx]
+    return self.boolean_masks[idx], self.boundary_values[idx], self.hidden_states[idx], idx
 
   def update_items(self, idx, hidden_state):
     self.hidden_states[idx] = hidden_state
