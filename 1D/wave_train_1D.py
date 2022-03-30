@@ -1,3 +1,4 @@
+from copy import deepcopy
 from numpy import integer
 from dataset import WaveDataset
 from torch.utils.data import DataLoader
@@ -10,24 +11,31 @@ from numbers import Number
 import math
 
 class Loss_Calculator():
-    def __init__(self, stiffness, damping, b_loss_weight=0.1, v_loss_weight=0.1,
-                 z_loss_weight=0.1):
+    def __init__(self, stiffness, damping, b_loss_weight=200, v_loss_weight=1,
+                 z_loss_weight=1):
         self.stiffness = stiffness
         self.damping = damping
         self.b_loss_weight = b_loss_weight
         self.v_loss_weight = v_loss_weight
         self.z_loss_weight = z_loss_weight
 
+
+    def diffuse(self, domain):
+        kernel_width = 3
+        kernel = torch.exp(-torch.arange(-2,2.001,4/(2*kernel_width)).float()**2).cuda()
+        return F.conv1d(domain, kernel.reshape(1,1,-1), padding=kernel_width)
+
     def compute_loss(self, sample_boundary_boolean_mask, sample_boundary_values,
                      old_coefficients_z, new_coefficients_z,
                      old_coefficients_v, new_coefficients_v,
-                     kernel_values_and_derivs, time_step: Number):
+                     zero_deriv_kernels, laplace_kernels, time_step: Number):
 
         z, laplace_z, dz_dt, v, a = interpolate_wave_in_time(old_coefficients_z,
                                                              new_coefficients_z,
                                                              old_coefficients_v,
                                                              new_coefficients_v,
-                                                             kernels=kernel_values_and_derivs,
+                                                             zero_deriv_kernels,
+                                                             laplace_kernels,
                                                              time_step=time_step)
 
         # compute boundary loss - the value should be
@@ -35,12 +43,14 @@ class Loss_Calculator():
 
         # interpolated_mask = interpolate_kernels(sample_boundary_boolean_mask[:, :, 1:-1], kernel_values_and_derivs)[0]
         # interpolated_boundary_vals = interpolate_kernels(sample_boundary_values[:, :, 1:-1], kernel_values_and_derivs)[0]
-        downsampled_z = F.interpolate(z, sample_boundary_boolean_mask.shape[2])
+        sample_boundary_boolean_mask = sample_boundary_boolean_mask + sample_boundary_boolean_mask * self.diffuse(1 - sample_boundary_boolean_mask)
+        upsampled_boundary_mask = F.interpolate(sample_boundary_boolean_mask[:,:,:], z.shape[2])
+        upsampled_boundary_values = F.interpolate(sample_boundary_values[:,:,:], z.shape[2])
         loss_boundary = torch.mean(
-            sample_boundary_boolean_mask[:, :, :] * ((downsampled_z - sample_boundary_values[:, :, :])**2))
+            upsampled_boundary_mask[:, :, :] * ((z - upsampled_boundary_values[:, :, :])**2))
 
         # not sure if this is needed or what it accomplishes. Need to ask.
-        # loss_boundary_reg = torch.mean(sample_boundary_mask[:,:,1:-1] * a**2
+        # loss_boundary_reg = torch.mean(upsampled_boundary_mask[:,:,:] * a**2)
 
         # loss to connect dz_dt and v
         loss_v = torch.mean((v - dz_dt)**2)
@@ -49,7 +59,7 @@ class Loss_Calculator():
         loss_z = torch.mean(
             (a - self.stiffness * laplace_z + self.damping * v)**2)
 
-        return self.b_loss_weight * loss_boundary + self.v_loss_weight * loss_v + self.z_loss_weight * loss_z
+        return self.b_loss_weight * loss_boundary + self.v_loss_weight * loss_v + self.z_loss_weight * loss_z# + loss_boundary_reg
 
 
 class WaveModel(nn.Module):
@@ -68,7 +78,7 @@ class WaveModel(nn.Module):
         self.num_kernels = total_num_kernels(
             z_order + 1) + total_num_kernels(v_order + 1)
         # first section of coefficients used to predict evolution of z wave, second section used to predict v wave
-        self.index_of_v_coefficients = math.factorial(z_order + 1)
+        self.index_of_v_coefficients = total_num_kernels(z_order + 1)
 
         # interpolate z_cond (2) and z_mask (1) from 4 surrounding fields
         self.interpol = nn.Conv1d(
@@ -114,15 +124,18 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cpu_device = torch.device("cpu")
     highest_z_order, highest_v_order = 2, 2
-    num_support_points = 41
+    num_support_points = 11
     model = WaveModel(highest_z_order, highest_v_order).to(device)
-    dataset = WaveDataset(num_grid_points, model.num_kernels)
-    optimizer = Adam(model.parameters(), lr=0.0001)
+    dataset = WaveDataset(num_grid_points, model.num_kernels, num_hidden_state_dataset_size=100)
+    optimizer = Adam(model.parameters(), lr=0.00007)
     kernel_values_holder = KernelValuesHolder(num_support_points, highest_z_order + 1, device) # assuming z order and v order are equal... might need to change that assumption
+
+    record_loss_state = None
+    record_loss = 3000
     for epoch in range(epochs):
         print(f"{epoch} / {epochs}")
 
-        batch_size = 50
+        batch_size = 10
         data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
         for i, data in enumerate(data_loader):
@@ -135,31 +148,33 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
 
             output = model(old_hidden_state, boolean_mask, boundary_value)
 
+            cloned_kernels = kernel_values_holder.kernel_values_and_derivs.detach().clone()
             loss = loss_calc.compute_loss(boolean_mask, boundary_value,
-                                          old_hidden_state[:model.index_of_v_coefficients],
-                                          output[:model.index_of_v_coefficients],
-                                          old_hidden_state[model.index_of_v_coefficients:],
-                                          output[model.index_of_v_coefficients:],
-                                          kernel_values_holder.kernel_values_and_derivs.detach().clone(),
+                                          old_hidden_state[:, :model.index_of_v_coefficients, :],
+                                          output[:, :model.index_of_v_coefficients, :],
+                                          old_hidden_state[:, model.index_of_v_coefficients:, :],
+                                          output[:, model.index_of_v_coefficients:, :],
+                                          cloned_kernels[:model.index_of_v_coefficients, :, :],
+                                          cloned_kernels[model.index_of_v_coefficients:, :, :],
                                           time_step=dataset.time_step)
             
-            loss = loss / batch_size
             print(f"loss is:{loss}")
             loss.backward()
             optimizer.step()
             dataset.update_items(index, output.detach().to(cpu_device))
             dataset.evolve_boundary()    
+            # if loss < record_loss:
+            #     record_loss_state = deepcopy(model.state_dict())
+            #     record_loss = loss
+        
+        if epoch % 5 == 0:
+            dataset.reset_hidden_states(batch_size)
+    
     if save_model:
-        torch.save(model.state_dict(), '/home/yaniv/Documents/Research/Spline_PINN/1D/models')
+        torch.save(model.state_dict(), '/home/yaniv/Documents/Research/Spline_PINN/1D/models/model')
     
 
 
 if __name__ == "__main__":
-    # model = WaveModel(2,2)
-    # grid_size = 200
-    # z_boundary_cond = F.pad(torch.zeros(1,1,grid_size - 4),(2,2), value=1)
-    # z_emitter_mask = F.pad(torch.ones(1,1,4), (grid_size // 2 -2, grid_size // 2 - 2), value = 0)
-    # hidden_state = torch.randn(1,5,199)
-    # new_state = model.forward(hidden_state, z_boundary_cond, z_emitter_mask)
-    # x = 1
-    x = 1
+    loss_calc = Loss_Calculator(0.1, 0.5)
+    train(num_grid_points = 200, epochs = 100, n_batches = 1, n_samples = 1, loss_calc=loss_calc, save_model=True)

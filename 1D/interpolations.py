@@ -141,12 +141,14 @@ def first_order_time_interpolation(y1, y2, t):
     return (1 - t) * y1 + t * y2
 
 def interpolate_wave_in_time(old_coefficients_z, new_coefficients_z,
-                        old_coefficients_v, new_coefficients_v, kernels, time_step):
-    old_z, old_laplace_z = interpolate_kernels(old_coefficients_z, kernels)
-    new_z, new_laplace_z = interpolate_kernels(new_coefficients_z, kernels)
+                        old_coefficients_v, new_coefficients_v, zero_deriv_kernels, laplace_kernels, time_step):
+    old_z = interpolate_kernels(old_coefficients_z, zero_deriv_kernels)[0]
+    old_laplace_z = interpolate_kernels(old_coefficients_z, laplace_kernels)[0]
+    new_z= interpolate_kernels(new_coefficients_z, zero_deriv_kernels)[0]
+    new_laplace_z= interpolate_kernels(new_coefficients_z, laplace_kernels)[0]
 
-    old_v = interpolate_kernels(old_coefficients_v, kernels)[0] 
-    new_v = interpolate_kernels(new_coefficients_v, kernels)[0] 
+    old_v = interpolate_kernels(old_coefficients_v, zero_deriv_kernels)[0] 
+    new_v = interpolate_kernels(new_coefficients_v, zero_deriv_kernels)[0] 
     half_t = time_step / 2
 
     # first order interpolation at middle of time step

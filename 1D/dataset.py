@@ -9,7 +9,7 @@ class WaveDataset(Dataset):
     self.num_hidden_state_dataset_size = num_hidden_state_dataset_size
     self.width = width
     self.time_step = time_step
-    self.emitter_size = 2
+    self.emitter_size = 1
     # self.true_domain_size = width * num_support_points - (width - 2) * (num_support_points // 2)
 
     self.boolean_masks = torch.zeros(num_hidden_state_dataset_size, 1, width, dtype=TORCH_DTYPE)
@@ -22,13 +22,15 @@ class WaveDataset(Dataset):
     '''
     Initializes random sinusoidal boundary conditions
     '''
-    self.boolean_masks[:, 0, -1: 2] = 1 # set domain boundary
+    self.boolean_masks[:, 0, -self.emitter_size:] = 1 # set domain boundary
+    self.boolean_masks[:, 0, :self.emitter_size] = 1 # set domain boundary
     sinusoids = torch.sin(self.phases.unsqueeze(1)).expand(-1, self.emitter_size) # create random sinusoids as the emitter's state
     self.boolean_masks[:, 0, self.width//2: self.width // 2 + self.emitter_size] = 1 # emitter boundary
     self.boundary_values[:, 0, self.width//2: self.width // 2 + self.emitter_size] = sinusoids
 
-  def reset_hidden_states(self):
-    self.hidden_states[:] = 0
+  def reset_hidden_states(self, num_indices):
+    indices = torch.randint(0, self.num_hidden_state_dataset_size, (1, num_indices))
+    self.hidden_states[indices] = 0
 
   def evolve_boundary(self):
     '''
@@ -40,6 +42,9 @@ class WaveDataset(Dataset):
 
   def __getitem__(self, idx):
     return self.boolean_masks[idx], self.boundary_values[idx], self.hidden_states[idx], idx
+  
+  def get_unsqueezed_item(self, idx):
+    return self.boolean_masks[[idx]], self.boundary_values[[idx]], self.hidden_states[[idx]]
 
   def update_items(self, idx, hidden_state):
     self.hidden_states[idx] = hidden_state
