@@ -11,8 +11,8 @@ from numbers import Number
 import math
 
 class Loss_Calculator():
-    def __init__(self, stiffness, damping, b_loss_weight=200, v_loss_weight=1,
-                 z_loss_weight=1):
+    def __init__(self, stiffness, damping, b_loss_weight=20, v_loss_weight=1,
+                 z_loss_weight=0.1):
         self.stiffness = stiffness
         self.damping = damping
         self.b_loss_weight = b_loss_weight
@@ -43,11 +43,15 @@ class Loss_Calculator():
 
         # interpolated_mask = interpolate_kernels(sample_boundary_boolean_mask[:, :, 1:-1], kernel_values_and_derivs)[0]
         # interpolated_boundary_vals = interpolate_kernels(sample_boundary_values[:, :, 1:-1], kernel_values_and_derivs)[0]
-        sample_boundary_boolean_mask = sample_boundary_boolean_mask + sample_boundary_boolean_mask * self.diffuse(1 - sample_boundary_boolean_mask)
-        upsampled_boundary_mask = F.interpolate(sample_boundary_boolean_mask[:,:,:], z.shape[2])
-        upsampled_boundary_values = F.interpolate(sample_boundary_values[:,:,:], z.shape[2])
+        sample_boundary_boolean_mask = (sample_boundary_boolean_mask + sample_boundary_boolean_mask * self.diffuse(1 - sample_boundary_boolean_mask)).detach()
+        # upsampled_boundary_mask = F.interpolate(sample_boundary_boolean_mask[:,:,:], z.shape[2])
+        # upsampled_boundary_values = F.interpolate(sample_boundary_values[:,:,:], z.shape[2])
+
+        num_support_points = 5
+        kernel = torch.tensor(1/(num_support_points - 2)).repeat((num_support_points - 2)).reshape(1,1,-1).cuda()
+        averaged_z = F.conv1d(z[:,:,2:-2], kernel, stride=num_support_points // 2)
         loss_boundary = torch.mean(
-            upsampled_boundary_mask[:, :, :] * ((z - upsampled_boundary_values[:, :, :])**2))
+            sample_boundary_boolean_mask[:, :, 1:-1] * ((averaged_z- sample_boundary_values[:, :, 1:-1])**2))
 
         # not sure if this is needed or what it accomplishes. Need to ask.
         # loss_boundary_reg = torch.mean(upsampled_boundary_mask[:,:,:] * a**2)
@@ -124,9 +128,9 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cpu_device = torch.device("cpu")
     highest_z_order, highest_v_order = 2, 2
-    num_support_points = 11
+    num_support_points = 5
     model = WaveModel(highest_z_order, highest_v_order).to(device)
-    dataset = WaveDataset(num_grid_points, model.num_kernels, num_hidden_state_dataset_size=100)
+    dataset = WaveDataset(num_grid_points, model.num_kernels, num_hidden_state_dataset_size=10, time_step=1)
     optimizer = Adam(model.parameters(), lr=0.00007)
     kernel_values_holder = KernelValuesHolder(num_support_points, highest_z_order + 1, device) # assuming z order and v order are equal... might need to change that assumption
 
@@ -135,7 +139,7 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
     for epoch in range(epochs):
         print(f"{epoch} / {epochs}")
 
-        batch_size = 10
+        batch_size = 1
         data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
         for i, data in enumerate(data_loader):
@@ -163,12 +167,12 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
             optimizer.step()
             dataset.update_items(index, output.detach().to(cpu_device))
             dataset.evolve_boundary()    
-            # if loss < record_loss:
-            #     record_loss_state = deepcopy(model.state_dict())
-            #     record_loss = loss
+            if loss < record_loss:
+                record_loss_state = deepcopy(model.state_dict())
+                record_loss = loss
         
-        if epoch % 5 == 0:
-            dataset.reset_hidden_states(batch_size)
+        # if epoch % 10 == 0:
+        #     dataset.reset_hidden_states(batch_size)
     
     if save_model:
         torch.save(model.state_dict(), '/home/yaniv/Documents/Research/Spline_PINN/1D/models/model')
@@ -177,4 +181,4 @@ def train(num_grid_points: integer, epochs: integer, n_batches: integer, n_sampl
 
 if __name__ == "__main__":
     loss_calc = Loss_Calculator(0.1, 0.5)
-    train(num_grid_points = 200, epochs = 100, n_batches = 1, n_samples = 1, loss_calc=loss_calc, save_model=True)
+    train(num_grid_points = 100, epochs = 90, n_batches = 1, n_samples = 1, loss_calc=loss_calc, save_model=True)
