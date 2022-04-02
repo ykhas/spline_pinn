@@ -22,11 +22,14 @@ class WaveDataset(Dataset):
     '''
     Initializes random sinusoidal boundary conditions
     '''
-    self.boolean_masks[:, 0, -self.emitter_size:] = 1 # set domain boundary
-    self.boolean_masks[:, 0, :self.emitter_size] = 1 # set domain boundary
+    self.boolean_masks[:, 0, -self.emitter_size - 1:] = 1 # set domain boundary
+    self.boolean_masks[:, 0, :self.emitter_size + 1] = 1 # set domain boundary
     sinusoids = torch.sin(self.phases.unsqueeze(1)).expand(-1, self.emitter_size) # create random sinusoids as the emitter's state
-    self.boolean_masks[:, 0, self.width//2: self.width // 2 + self.emitter_size] = 1 # emitter boundary
-    self.boundary_values[:, 0, self.width//2: self.width // 2 + self.emitter_size] = 0.5 #sinusoids
+
+    locations = torch.randint(low = self.emitter_size, high=self.width - self.emitter_size - 1, size = (1, self.boolean_masks.shape[0]))
+    for i in range(self.emitter_size):
+      self.boolean_masks[range(self.boolean_masks.shape[0]), 0,  locations[0] + i] = 1 # emitter boundary
+      self.boundary_values[range(self.boolean_masks.shape[0]), 0, locations[0] + i] = 0.5 #sinusoids
 
   def reset_hidden_states(self, num_indices, all=False):
     if not all:
@@ -51,7 +54,6 @@ class WaveDataset(Dataset):
     return self.boolean_masks[[idx]], self.boundary_values[[idx]], self.hidden_states[[idx]]
 
   def update_items(self, idx, hidden_state):
-    return
     self.hidden_states[idx] = hidden_state
 
   def __len__(self):

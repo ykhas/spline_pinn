@@ -3,7 +3,7 @@ import torch
 from dataset import WaveDataset
 from interpolations import KernelValuesHolder, interpolate_wave_in_time, interpolate_kernels
 from matplotlib import pyplot as plt
-from wave_train_1D import WaveModel
+from wave_train_1D import WaveModel, Loss_Calculator
 from const import TORCH_DTYPE
 
 
@@ -12,6 +12,8 @@ if __name__=="__main__":
     highest_z_order = 2
     num_support_points = 5
     data_index = 0
+    stiffness = 0.1
+    damping = 0.5
     model = WaveModel(highest_z_order, highest_z_order)
     model.load_state_dict(torch.load("/home/yaniv/Documents/Research/Spline_PINN/1D/models/model"))
     model.eval()
@@ -24,13 +26,23 @@ if __name__=="__main__":
 
     new_state = model(old_hidden_state, boundary, values)
 
-    z = interpolate_wave_in_time(old_hidden_state[:,:model.index_of_v_coefficients,:],
-                                          new_state[:,:model.index_of_v_coefficients,:],
-                                          old_hidden_state[:, model.index_of_v_coefficients:, :],
-                                          new_state[:, model.index_of_v_coefficients:, :],
-                                          kernel_values_holder.kernel_values_and_derivs[model.index_of_v_coefficients:, :, :],
-                                          kernel_values_holder.kernel_values_and_derivs[:model.index_of_v_coefficients, :, :],
-                                          dataset.time_step)[0]
+    # z, laplace_z, dz_dt, v, a = interpolate_wave_in_time(old_hidden_state[:,:model.index_of_v_coefficients,:],
+    #                                       new_state[:,:model.index_of_v_coefficients,:],
+    #                                       old_hidden_state[:, model.index_of_v_coefficients:, :],
+    #                                       new_state[:, model.index_of_v_coefficients:, :],
+    #                                       kernel_values_holder.kernel_values_and_derivs[model.index_of_v_coefficients:, :, :],
+    #                                       kernel_values_holder.kernel_values_and_derivs[:model.index_of_v_coefficients, :, :],
+    #                                       dataset.time_step)
+
+    loss_calc = Loss_Calculator(stiffness, damping, device=torch.device("cpu"))
+
+    # loss_calc.compute_loss(boundary, values, old_hidden_state[:,:model.index_of_v_coefficients,:],
+    #                                       new_state[:,:model.index_of_v_coefficients,:],
+    #                                       old_hidden_state[:, model.index_of_v_coefficients:, :],
+    #                                       new_state[:, model.index_of_v_coefficients:, :],
+    #                                       kernel_values_holder.kernel_values_and_derivs[model.index_of_v_coefficients:, :, :],
+    #                                       kernel_values_holder.kernel_values_and_derivs[:model.index_of_v_coefficients, :, :],
+    #                                       dataset.time_step)
     
     for i in range(30):
         boundary, values, old_hidden_state = dataset.get_unsqueezed_item(data_index)
@@ -42,7 +54,8 @@ if __name__=="__main__":
         plt.plot(values[0,0,:].detach().numpy(), '.')
         plt.plot(new_z[0,0,:].detach().numpy(), '-')
         plt.show()
-        dataset.evolve_boundary()
+        # dataset.evolve_boundary()
+        dataset.update_items(data_index, new_state.detach())
     
 
 
