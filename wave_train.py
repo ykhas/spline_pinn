@@ -1,4 +1,4 @@
-from fluid_setups import Dataset
+# from fluid_setups import Dataset
 from wave_setups import Dataset
 from spline_models import interpolate_wave_states_2,superres_2d_wave,get_Net
 from operators import vector2HSV
@@ -17,14 +17,13 @@ np.random.seed(0)
 stiffness = params.stiffness
 damping = params.damping
 dt = params.dt
-params.width = 200 if params.width is None else params.width
-params.height = 200 if params.height is None else params.height
+params.width = 100 #if params.width is None else params.width
 resolution_factor = params.resolution_factor
-orders_z = [params.orders_z,params.orders_z]
+orders_z = [params.orders_z]
 z_size = np.prod([i+1 for i in orders_z])
 
 # initialize dataset
-dataset = Dataset(params.width,params.height,hidden_size=2*z_size,batch_size=params.batch_size,n_samples=params.n_samples,dataset_size=params.dataset_size,average_sequence_length=params.average_sequence_length,dt=params.dt,types=["super_simple","oscillator","box"])#,"oscillator","box"
+dataset = Dataset(params.width,hidden_size=2*z_size,batch_size=params.batch_size,n_samples=params.n_samples,dataset_size=params.dataset_size,average_sequence_length=params.average_sequence_length,dt=params.dt,types=["super_simple","oscillator","box"])#,"oscillator","box"
 
 # initialize fluid model and optimizer
 model = toCuda(get_Net(params))
@@ -56,11 +55,9 @@ params.load_index = 0 if params.load_index is None else params.load_index
 kernel_width = 3
 kernel = torch.exp(-torch.arange(-2,2.001,4/(2*kernel_width)).float()**2)
 kernel /= torch.sum(kernel)
-kernel_x = toCuda(kernel.unsqueeze(0).unsqueeze(1).unsqueeze(3))
-kernel_y = toCuda(kernel.unsqueeze(0).unsqueeze(1).unsqueeze(2))
+kernel_x = toCuda(kernel.unsqueeze(0).unsqueeze(1))
 def diffuse(T): # needed to put extra weight on domain borders
-	T = F.conv2d(T,kernel_x,padding=[kernel_width,0])
-	T = F.conv2d(T,kernel_y,padding=[0,kernel_width])
+	T = F.conv1d(T,kernel_x,padding=kernel_width)
 	return T
 
 for epoch in range(params.load_index,params.n_epochs):
@@ -88,14 +85,14 @@ for epoch in range(params.load_index,params.n_epochs):
 			z,grad_z,laplace_z,dz_dt,v,a = interpolate_wave_states_2(old_hidden_state,new_hidden_state,offset,dt=dt,orders_z=orders_z)
 			
 			# boundary loss
-			loss_boundary = torch.mean(sample_z_mask[:,:,1:-1,1:-1]*((z-sample_z_cond[:,:,1:-1,1:-1])**2),dim=(1,2,3))
-			loss_boundary_reg = torch.mean(sample_z_mask[:,:,1:-1,1:-1]*(a**2),dim=(1,2,3))
+			loss_boundary = torch.mean(sample_z_mask[:,:,1:-1]*((z-sample_z_cond[:,:,1:-1])**2),dim=(1,2))
+			loss_boundary_reg = torch.mean(sample_z_mask[:,:,1:-1]*(a**2),dim=(1,2))
 			
 			# loss to connect dz_dt and v
-			loss_v = torch.mean((v-dz_dt)**2,dim=(1,2,3))
+			loss_v = torch.mean((v-dz_dt)**2,dim=(1,2))
 			
 			# wave equation loss
-			loss_wave = torch.mean((a-stiffness*laplace_z+damping*v)**2,dim=(1,2,3))
+			loss_wave = torch.mean((a-stiffness*laplace_z+damping*v)**2,dim=(1,2))
 			
 			loss_total = loss_total + params.loss_bound*loss_boundary + params.loss_bound_reg*loss_boundary_reg + params.loss_wave*loss_wave + params.loss_v*loss_v
 		

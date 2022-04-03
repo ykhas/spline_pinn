@@ -19,8 +19,8 @@ def params():
 	parser = argparse.ArgumentParser(description='train / test a pytorch model to predict frames')
 	
 	# Training parameters
-	parser.add_argument('--n_epochs', default=100000, type=int, help='number of epochs (after each epoch, the model gets saved)')
-	parser.add_argument('--n_batches_per_epoch', default=10000, type=int, help='number of batches per epoch (default: 10000)')
+	parser.add_argument('--n_epochs', default=1000, type=int, help='number of epochs (after each epoch, the model gets saved)')
+	parser.add_argument('--n_batches_per_epoch', default=100, type=int, help='number of batches per epoch (default: 10000)')
 	parser.add_argument('--batch_size', default=50, type=int, help='batch size (default: 30)')
 	parser.add_argument('--n_samples', default=10, type=int, help='number of samples (different offsets) per batch (default: 10)')
 	parser.add_argument('--dataset_size', default=1000, type=int, help='size of dataset (default: 1000)')

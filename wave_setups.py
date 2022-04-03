@@ -32,9 +32,9 @@ class Dataset():
 	
 	def generate_random_z_cond(self,time): # modulate x/y/t with random sin / cos waves => used in "simple" environment
 		
-		return torch.sin(self.x_mesh*0.02+torch.cos(self.y_mesh*0.01*(np.cos(time*0.0021)+2))*np.cos(time*0.01)*3+torch.cos(self.x_mesh*0.011*(np.sin(time*0.00221)+2))*np.cos(time*0.00321)*3+0.01*self.y_mesh*np.cos(time*0.0215))
+		return torch.sin(self.x_mesh*0.02+torch.cos(torch.cos(self.x_mesh*0.011*(np.sin(time*0.00221)+2))*np.cos(time*0.00321)*3))
 	
-	def __init__(self,w,h,hidden_size,resolution_factor=4,batch_size=100,n_samples=1,dataset_size=1000,average_sequence_length=5000,interactive=False,max_speed=10,brown_damping=0.9995,brown_velocity=0.05,init_velocity=0,dt=1,types=["simple"]):
+	def __init__(self,w,hidden_size,resolution_factor=4,batch_size=100,n_samples=1,dataset_size=1000,average_sequence_length=5000,interactive=False,max_speed=10,brown_damping=0.9995,brown_velocity=0.05,init_velocity=0,dt=1,types=["simple"]):
 		"""
 		:w,h: width / height of grid
 		:hidden_size: size of hidden state
@@ -49,8 +49,8 @@ class Dataset():
 		:init_velocity: initial velocity of objects in simulation (can be ignored / set to 0)
 		:resolution_factor: resolution factor for internal grid representation (e.g. 4 times higher resolution)
 		"""
-		self.w,self.h = w,h
-		self.w_full_res,self.h_full_res = w*resolution_factor,h*resolution_factor
+		self.w = w
+		self.w_full_res = w*resolution_factor
 		#print(f"resolution: {self.w_full_res,self.h_full_res}")
 		self.resolution_factor = resolution_factor
 		self.batch_size = batch_size
@@ -67,18 +67,16 @@ class Dataset():
 		self.types = types
 		self.env_info = [{} for _ in range(dataset_size)]
 		
-		self.x_mesh,self.y_mesh = torch.meshgrid([torch.arange(0,self.w_full_res),torch.arange(0,self.h_full_res)])
-		self.x_mesh,self.y_mesh = 1.0*self.x_mesh,1.0*self.y_mesh
+		self.x_mesh = 1.0*torch.arange(0,self.w_full_res)
 		
 		self.padding_x = 4
-		self.padding_y = 4
 		
-		self.z_cond = torch.zeros(dataset_size,1,w,h)
-		self.z_mask = torch.zeros(dataset_size,1,w,h)
-		self.z_cond_full_res = torch.zeros(dataset_size,1,self.w_full_res,self.h_full_res)
-		self.z_mask_full_res = torch.zeros(dataset_size,1,self.w_full_res,self.h_full_res)
+		self.z_cond = torch.zeros(dataset_size,1,w)
+		self.z_mask = torch.zeros(dataset_size,1,w)
+		self.z_cond_full_res = torch.zeros(dataset_size,1,self.w_full_res)
+		self.z_mask_full_res = torch.zeros(dataset_size,1,self.w_full_res)
 		
-		self.hidden_states = torch.zeros(dataset_size,hidden_size,w-1,h-1)#hidden state is 1 smaller than dataset-size!
+		self.hidden_states = torch.zeros(dataset_size,hidden_size,w-1)#hidden state is 1 smaller than dataset-size!
 		self.t = 0
 		self.i = 0
 		
@@ -95,21 +93,21 @@ class Dataset():
 		self.hidden_states[index] = 0
 		self.z_cond_full_res[index] = 0
 		self.z_mask_full_res[index] = 1
-		self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):(self.padding_x*self.resolution_factor),-(self.padding_y*self.resolution_factor):(self.padding_y*self.resolution_factor)] = 0
+		self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):(self.padding_x*self.resolution_factor)] = 0
 		
-		type = np.random.choice(self.types)
+		type = "simple"#TEMPORARY #np.random.choice(self.types)
 		self.env_info[index]["type"] = type
 		
 		if type=="super_simple":
 			# frame
 			self.z_mask_full_res[index] = 1
-			self.z_mask_full_res[index,:,(self.padding_x*self.resolution_factor):-(self.padding_x*self.resolution_factor),(self.padding_y*self.resolution_factor):-(self.padding_y*self.resolution_factor)] = 0
+			self.z_mask_full_res[index,:,(self.padding_x*self.resolution_factor):-(self.padding_x*self.resolution_factor)] = 0
 			
 			# obstabcles (oscillators)
 			for x in [0]:
-				self.z_mask_full_res[index,:,(self.w_full_res//2+(-5+x)*self.resolution_factor):(self.w_full_res//2+(5+x)*self.resolution_factor),(self.h_full_res//2-5*self.resolution_factor):(self.h_full_res//2+5*self.resolution_factor)] = 1
+				self.z_mask_full_res[index,:,(self.w_full_res//2+(-5+x)*self.resolution_factor):(self.w_full_res//2+(5+x)*self.resolution_factor)] = 1
 			
-			self.z_cond_full_res[index,0,(self.padding_x*self.resolution_factor):-(self.padding_x*self.resolution_factor),(self.padding_y*self.resolution_factor):-(self.padding_y*self.resolution_factor)] = 1
+			self.z_cond_full_res[index,0,(self.padding_x*self.resolution_factor):-(self.padding_x*self.resolution_factor)] = 1
 			self.z_cond_full_res[index] = self.z_cond_full_res[index]*self.z_mask_full_res[index]
 		
 		
@@ -119,12 +117,10 @@ class Dataset():
 			self.env_info[index]["seed"] = 1000*torch.rand(1)
 			self.z_mask_full_res[index] = 0
 			self.z_mask_full_res[index] = (self.generate_random_z_cond(self.env_info[index]["seed"])>0.6).float()
-			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor),:] = 1
-			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):,:] = 1
-			self.z_mask_full_res[index,:,:,:(self.padding_y*self.resolution_factor)] = 1
-			self.z_mask_full_res[index,:,:,-(self.padding_y*self.resolution_factor):] = 1
+			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):] = 1
 			
-			self.z_cond_full_res[index,0,:,:] = self.generate_random_z_cond(self.env_info[index]["seed"])
+			self.z_cond_full_res[index,0,:] = self.generate_random_z_cond(self.env_info[index]["seed"])
 			self.z_cond_full_res[index] = self.z_cond_full_res[index]*self.z_mask_full_res[index]
 			self.env_info[index]["time"] = 0
 		
@@ -223,8 +219,8 @@ class Dataset():
 			self.mousey = object_y
 			self.mousev = freq
 		
-		self.z_cond[index:(index+1)] = f.avg_pool2d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
-		self.z_mask[index:(index+1)] = f.avg_pool2d(self.z_mask_full_res[index:(index+1)],self.resolution_factor)
+		self.z_cond[index:(index+1)] = f.avg_pool1d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
+		self.z_mask[index:(index+1)] = f.avg_pool1d(self.z_mask_full_res[index:(index+1)],self.resolution_factor)
 	
 	def update_env(self,index):
 		#CODO: introduce "layers" in between time-steps (e.g. for dt/2)
@@ -234,12 +230,10 @@ class Dataset():
 			
 			self.z_mask_full_res[index] = 0
 			self.z_mask_full_res[index] = (self.generate_random_z_cond(-time+self.env_info[index]["seed"])>0.6).float()
-			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor),:] = 1
-			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):,:] = 1
-			self.z_mask_full_res[index,:,:,:(self.padding_y*self.resolution_factor)] = 1
-			self.z_mask_full_res[index,:,:,-(self.padding_y*self.resolution_factor):] = 1
+			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):] = 1
 			
-			self.z_cond_full_res[index,0,:,:] = self.generate_random_z_cond(time+self.env_info[index]["seed"])
+			self.z_cond_full_res[index,0,:] = self.generate_random_z_cond(time+self.env_info[index]["seed"])
 			self.z_cond_full_res[index] = self.z_cond_full_res[index]*self.z_mask_full_res[index]
 			self.env_info[index]["time"] = time + 1
 			
@@ -418,8 +412,8 @@ class Dataset():
 			self.env_info[index]["freq"] = freq
 			self.env_info[index]["time"] = time + 1
 		
-		self.z_cond[index:(index+1)] = f.avg_pool2d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
-		self.z_mask[index:(index+1)] = f.avg_pool2d(self.z_mask_full_res[index:(index+1)],self.resolution_factor)
+		self.z_cond[index:(index+1)] = f.avg_pool1d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
+		self.z_mask[index:(index+1)] = f.avg_pool1d(self.z_mask_full_res[index:(index+1)],self.resolution_factor)
 	
 	def update_envs(self,indices):
 		for index in indices:
@@ -455,12 +449,11 @@ class Dataset():
 		sample_z_cond = []
 		sample_z_mask = []
 		for i in range(self.n_samples):
-			offset = torch.rand(3)
+			offset = torch.rand(2)
 			grid_offsets.append(offset)
 			x_offset = min(int(self.resolution_factor*offset[0]),self.resolution_factor-1)
-			y_offset = min(int(self.resolution_factor*offset[1]),self.resolution_factor-1)
-			sample_z_cond.append(self.z_cond_full_res[self.indices,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor])
-			sample_z_mask.append(self.z_mask_full_res[self.indices,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor])
+			sample_z_cond.append(self.z_cond_full_res[self.indices,:,x_offset::self.resolution_factor])
+			sample_z_mask.append(self.z_mask_full_res[self.indices,:,x_offset::self.resolution_factor])
 		
 		
 		return self.z_cond[self.indices],self.z_mask[self.indices],self.hidden_states[self.indices],grid_offsets,sample_z_cond,sample_z_mask
@@ -468,7 +461,7 @@ class Dataset():
 	def tell(self,hidden_state):
 		
 		#CODO: do not update the state at every step...
-		self.hidden_states[self.indices,:,:,:] = hidden_state.detach()
+		self.hidden_states[self.indices,:,:] = hidden_state.detach()
 	
 		self.t += 1
 		#print(f"t: {self.t} - {(self.average_sequence_length/self.batch_size)}")

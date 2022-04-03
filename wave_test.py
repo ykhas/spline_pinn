@@ -20,15 +20,15 @@ np.random.seed(0)
 n_iterations_per_visualization = 1 # this value can be set to a higher integer if the cv2 visualizations impose a bottleneck on your computer and you want to speed up the simulation
 save_movie=False#True#
 movie_FPS = 20 # ... choose FPS as provided in visualization
-params.width = 200 if params.width is None else params.width
-params.height = 200 if params.height is None else params.height
+params.width = 100 if params.width is None else params.width
+# params.height = 200 if params.height is None else params.height
 resolution_factor = params.resolution_factor
-orders_z = [params.orders_z,params.orders_z]
+orders_z = [params.orders_z]
 z_size = np.prod([i+1 for i in orders_z])
 types = ["reflection","oscillator","doppler"]# further types: "box","simple","super_simple"
 
 # initialize dataset
-dataset = Dataset(params.width,params.height,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
+dataset = Dataset(params.width,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
 
 # initialize windows / movies / mouse handler
 cv2.namedWindow('z',cv2.WINDOW_NORMAL)
@@ -37,7 +37,7 @@ cv2.namedWindow('a',cv2.WINDOW_NORMAL)
 
 if save_movie:
 	fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-	movie_z = cv2.VideoWriter(f'plots/z_{get_hyperparam_wave(params)}.avi', fourcc, movie_FPS, (params.height*resolution_factor,params.width*resolution_factor))
+	movie_z = cv2.VideoWriter(f'plots/z_{get_hyperparam_wave(params)}.avi', fourcc, movie_FPS, (params.width*resolution_factor))
 	movie_v = cv2.VideoWriter(f'plots/v_{get_hyperparam_wave(params)}.avi', fourcc, movie_FPS, (params.height*resolution_factor,params.width*resolution_factor))
 	movie_a = cv2.VideoWriter(f'plots/a_{get_hyperparam_wave(params)}.avi', fourcc, movie_FPS, (params.height*resolution_factor,params.width*resolution_factor))
 
@@ -71,6 +71,14 @@ while not exit_loop:
 	# reset environment (choose new random environment from types-list and reset z / v_z field to 0)
 	dataset.reset_env(0)
 	
+	plt.ion()
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111)
+
+	x = np.linspace(0,100,800)
+	y = np.linspace(-2,2,800)
+	line1, = ax.plot(x, y, 'r-')
 	for i in range(params.average_sequence_length):
 		
 		# obtain boundary conditions / mask as well as spline coefficients of previous timestep from dataset
@@ -93,27 +101,34 @@ while not exit_loop:
 				v_old = v
 			
 			# visualize field values
-			image = z[0,0].cpu().detach().clone()
-			image = torch.clamp(0.5*image+0.5,min=0,max=1)
-			image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
-			if save_movie:
-				movie_z.write((255*image).astype(np.uint8))
-			cv2.imshow('z',image)
+			image = torch.clamp(0.5*z[0,0]+0.5, min=0, max=1).cpu().detach().clone()
 			
-			image = v[0,0].cpu().detach().clone()
-			image = torch.clamp(0.2*image+0.5,min=0,max=1)
-			image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
-			if save_movie:
-				movie_v.write((255*image).astype(np.uint8))
-			cv2.imshow('v',image)
+			line1.set_ydata(image.numpy())
+			fig.canvas.draw()
+			fig.canvas.flush_events()
+
+			# plt.plot(image.numpy())
+			# plt.show()
+			# image = torch.clamp(0.5*image+0.5,min=0,max=1)
+			# image = toCpu(image).unsqueeze(1).repeat(1,3).numpy()
+			# if save_movie:
+			# 	movie_z.write((255*image).astype(np.uint8))
+			# cv2.imshow('z',image)
 			
-			a = (v-v_old)/(params.dt*n_iterations_per_visualization)
-			image = a[0,0].cpu().detach().clone()
-			image = torch.clamp(0.2*image+0.5,min=0,max=1)
-			image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
-			if save_movie:
-				movie_a.write((255*image).astype(np.uint8))
-			cv2.imshow('a',image)
+			# image = v[0,0].cpu().detach().clone()
+			# image = torch.clamp(0.2*image+0.5,min=0,max=1)
+			# image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
+			# if save_movie:
+			# 	movie_v.write((255*image).astype(np.uint8))
+			# cv2.imshow('v',image)
+			
+			# a = (v-v_old)/(params.dt*n_iterations_per_visualization)
+			# image = a[0,0].cpu().detach().clone()
+			# image = torch.clamp(0.2*image+0.5,min=0,max=1)
+			# image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
+			# if save_movie:
+			# 	movie_a.write((255*image).astype(np.uint8))
+			# cv2.imshow('a',image)
 			
 			key = cv2.waitKey(1)
 			

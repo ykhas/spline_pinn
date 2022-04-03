@@ -12,7 +12,7 @@ def get_Net(params):
 		net = fluid_model(orders_v=[params.orders_v,params.orders_v],orders_p=[params.orders_p,params.orders_p],hidden_size=params.hidden_size,input_size=3)
 	elif params.net == "Wave_model":
 		params.orders_p = params.orders_v = params.orders_z
-		net = wave_model(orders_v=[params.orders_v,params.orders_v],orders_p=[params.orders_p,params.orders_p],hidden_size=params.hidden_size,input_size=2,residuals=True)
+		net = wave_model(orders_v=[params.orders_v],orders_p=[params.orders_p,],hidden_size=params.hidden_size,input_size=2,residuals=True)
 	return net
 
 class fluid_model(nn.Module):
@@ -107,10 +107,10 @@ class wave_model(nn.Module):
 		self.hidden_state_size = self.v_size + self.p_size
 		self.residuals = residuals
 		
-		self.interpol = nn.Conv2d(input_size,interpolation_size,kernel_size=2) # interpolate v_cond (2) and v_mask (1) from 4 surrounding fields
-		self.conv1 = nn.Conv2d(self.hidden_state_size+interpolation_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
-		self.conv2 = nn.Conv2d(self.hidden_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
-		self.conv3 = nn.Conv2d(self.hidden_size, self.hidden_state_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
+		self.interpol = nn.Conv1d(input_size,interpolation_size,kernel_size=2) # interpolate v_cond (2) and v_mask (1) from 4 surrounding fields
+		self.conv1 = nn.Conv1d(self.hidden_state_size+interpolation_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
+		self.conv2 = nn.Conv1d(self.hidden_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
+		self.conv3 = nn.Conv1d(self.hidden_size, self.hidden_state_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
 		
 		if self.hidden_state_size == 18: # if orders_z = 2
 			self.output_scaler_wave = toCuda(torch.Tensor([5,0.5,0.05,0.5, 0.05,0.05,0.05,0.05,0.05, 5,0.5,0.05,0.5, 0.05,0.05,0.05,0.05,0.05]).unsqueeze(0).unsqueeze(2).unsqueeze(3))
@@ -135,7 +135,7 @@ class wave_model(nn.Module):
 		out = self.conv3(x)
 		
 		# residual connections
-		out[:,:,:,:] = self.output_scaler_wave*torch.tanh((out[:,:,:,:]+hidden_state[:,:,:,:]/self.output_scaler_wave))
+		out[:,:,:] = torch.tanh((out[:,:,:]+hidden_state[:,:,:]))
 		
 		return out
 
@@ -239,10 +239,11 @@ def p_multidim(offsets,orders,indices):
 	:orders: orders of spline for each dimension (note: counting starts at 0 => 0 ~ 1st order, 1 ~ 2nd order, 2 ~ 3rd order)
 	:indices: indices of spline for each dimension (note: counting starts at 0)
 	"""
-	return torch.prod(torch.cat([pi[orders[i]][indices[i]](offsets[:,i:(i+1)]).unsqueeze(0) for i in range(len(orders))]),dim=0)
+	a = torch.cat([pi[orders[i]][indices[i]](offsets[:,i:(i+1)]).unsqueeze(0) for i in range(len(orders))])
+	return a
 
 # buffering interpolation kernels significantly speeds up computations
-offset_summary = toCuda(torch.tensor([[[0,0],[1,0]],[[0,1],[1,1]]]).unsqueeze(0).permute(0,3,2,1))
+offset_summary = toCuda(torch.tensor([[0,1]]).unsqueeze(0))
 kernel_buffer_velocity = {}
 kernel_buffer_velocity_superres = {}
 kernel_buffer_pressure = {}
@@ -364,19 +365,19 @@ def interpolate_wave_states_2(old_hidden_states,new_hidden_states,offset,dt=1,or
 	z_size = np.prod([i+1 for i in orders_z])
 	
 	# z field
-	old_z,old_grad_z,old_laplace_z = interpolate_2d_wave(old_hidden_states[:,:z_size],offset[0:2],orders_z)
-	new_z,new_grad_z,new_laplace_z = interpolate_2d_wave(new_hidden_states[:,:z_size],offset[0:2],orders_z)
+	old_z,old_grad_z,old_laplace_z = interpolate_2d_wave(old_hidden_states[:,:z_size],offset[0:1],orders_z)
+	new_z,new_grad_z,new_laplace_z = interpolate_2d_wave(new_hidden_states[:,:z_size],offset[0:1],orders_z)
 	
 	# v field
-	old_v,old_grad_v,old_laplace_v = interpolate_2d_wave(old_hidden_states[:,z_size:],offset[0:2],orders_z)
-	new_v,new_grad_V,new_laplace_v = interpolate_2d_wave(new_hidden_states[:,z_size:],offset[0:2],orders_z)
+	old_v,old_grad_v,old_laplace_v = interpolate_2d_wave(old_hidden_states[:,z_size:],offset[0:1],orders_z)
+	new_v,new_grad_V,new_laplace_v = interpolate_2d_wave(new_hidden_states[:,z_size:],offset[0:1],orders_z)
 	
 	# first order interpolation of z and v fields
-	z = (1-offset[2])*old_z + offset[2]*new_z
-	grad_z = (1-offset[2])*old_grad_z + offset[2]*new_grad_z
-	laplace_z = (1-offset[2])*old_laplace_z + offset[2]*new_laplace_z
+	z = (1-offset[1])*old_z + offset[1]*new_z
+	grad_z = (1-offset[1])*old_grad_z + offset[1]*new_grad_z
+	laplace_z = (1-offset[1])*old_laplace_z + offset[1]*new_laplace_z
 	dz_dt = (new_z-old_z)/dt
-	v = (1-offset[2])*old_v + offset[2]*new_v # dzdt and v should be the same -> add residual loss!
+	v = (1-offset[1])*old_v + offset[1]*new_v # dzdt and v should be the same -> add residual loss!
 	a = (new_v-old_v)/dt
 	
 	return z,grad_z,laplace_z,dz_dt,v,a
@@ -585,35 +586,34 @@ def interpolate_2d_wave(weights,offsets,orders=[1,1]):
 		:grad(z): gradient of z field (dz/dx dz/dy), size: bs x 2 x (w-1) x (h-1)
 		:laplace(z): laplacian of z values, size:  bs x 1 x (w-1) x (h-1)
 	"""
-	offset_key = f"{offsets[0]} {offsets[1]}, orders: {orders}"
+	offset_key = f"{offsets[0]}, orders: {orders}"
 	if offset_key in kernel_buffer_wave.keys():
 		kernels = toCuda(kernel_buffer_wave[offset_key])
 	else:
-		offsets = (offsets.clone().unsqueeze(0).unsqueeze(2).unsqueeze(3).repeat(1,1,2,2)-offset_summary)
-		offsets = offsets.unsqueeze(2).unsqueeze(3).repeat(1,1,(orders[0]+1),(orders[1]+1),1,1).detach().requires_grad_(True)
+		offsets = (offsets.clone().unsqueeze(0).repeat(1,2)-offset_summary)
+		offsets = offsets.unsqueeze(2).repeat(1,1,(orders[0]+1),1).detach().requires_grad_(True)
 		
 		# z_value
-		kernels = toCuda(torch.zeros(1,1+2+1,(orders[0]+1),(orders[1]+1),2,2))
+		kernels = toCuda(torch.zeros(1,1+1+1,(orders[0]+1),2))
 		for l in range(orders[0]+1):
-			for m in range(orders[1]+1):
-				kernels[0:1,0:1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+			kernels[0:1,0:1,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
 		
 		# gradients of z_value
-		kernels[0:1,1:3] = grad(kernels[0:1,0:1,:,:,:,:],offsets,create_graph=True,retain_graph=True)
+		kernels[0:1,1:2] = grad(kernels[0:1,0:1,:,:,],offsets,create_graph=True,retain_graph=True)
 		
 		# laplace of z_value
-		kernels[0:1,3:4] = div(kernels[0:1,1:3],offsets,retain_graph=False)
+		kernels[0:1,2:3] = div(kernels[0:1,1:2],offsets,retain_graph=False)
 		
-		kernels = kernels.reshape(1,1+2+1,(orders[0]+1)*(orders[1]+1),2,2).detach()
+		kernels = kernels.reshape(1,1+1+1,(orders[0]+1),2).detach()
 		
 		# buffer kernels
 		kernel_buffer_wave[offset_key] = kernels
 		save_buffers()
 	
-	output = F.conv2d(weights,kernels[0],padding=0)
+	output = F.conv1d(weights,kernels[0],padding=0)
 	
 	# CODO: to be even more efficient, we could separate interpolation in x/y direction
-	return output[:,0:1],output[:,1:3],output[:,3:4]
+	return output[:,0:1],output[:,1:2],output[:,2:3]
 
 #  superresolution with strided convolution
 def superres_2d_wave(weights,orders=[1,1],resolution_factor=1):
@@ -624,40 +624,37 @@ def superres_2d_wave(weights,orders=[1,1],resolution_factor=1):
 	if res_key in kernel_buffer_wave_superres.keys():
 		superres_kernels = kernel_buffer_wave_superres[res_key]
 	else:
-		superres_kernels = toCuda(torch.zeros(1,1+2+1+1,2*(orders[0]+1)*(orders[1]+1),2*resolution_factor,2*resolution_factor))
+		superres_kernels = toCuda(torch.zeros(1,1+1+1+1,2*(orders[0]+1),2*resolution_factor))
 		for i in range(resolution_factor):
-			for j in range(resolution_factor):
-				offsets = (toCuda(torch.tensor([i/resolution_factor,j/resolution_factor])).unsqueeze(0).unsqueeze(2).unsqueeze(3).repeat(1,1,2,2)-1+offset_summary)
-				offsets = offsets.unsqueeze(2).unsqueeze(3).repeat(1,1,(orders[0]+1),(orders[1]+1),1,1).detach().requires_grad_(True)
-				
-				kernels = toCuda(torch.zeros(1,1+2+1+1+1,2,(orders[0]+1),(orders[1]+1),2,2))
-				for l in range(orders[0]+1):
-					for m in range(orders[1]+1):
-						kernels[0:1,0:1,0,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
-				
-				# gradients of z_value
-				kernels[0:1,1:3,0,:,:,:,:] = grad(kernels[0:1,0:1,0,:,:,:,:],offsets,create_graph=True,retain_graph=True)
-				
-				# laplace of z_value
-				kernels[0:1,3:4,0,:,:,:,:] = div(kernels[0:1,1:3],offsets,retain_graph=False)
-				
-				#v and a
-				for l in range(orders[0]+1):
-					for m in range(orders[1]+1):
-						kernels[0:1,4:5,1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
-				
-				kernels = kernels.reshape(1,1+2+1+1+1,2*(orders[0]+1)*(orders[1]+1),2,2).detach()
+			offsets = (toCuda(torch.tensor([i/resolution_factor])).unsqueeze(0).repeat(1,2)-1+offset_summary)
+			offsets = offsets.unsqueeze(2).repeat(1,1,(orders[0]+1),1).detach().requires_grad_(True)
 			
-				kernels = kernels.reshape(1,1+2+1+1+1,2*(orders[0]+1)*(orders[1]+1),2,2).detach().clone()
-				superres_kernels[:,:,:,i::resolution_factor,j::resolution_factor] = kernels
+			kernels = toCuda(torch.zeros(1,1+1+1+1,2,(orders[0]+1),2))
+			for l in range(orders[0]+1):
+				kernels[0:1,0:1,0,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
+			
+			# gradients of z_value
+			kernels[0:1,1:2,0,:,:,] = grad(kernels[0:1,0:1,0,:,:,],offsets,create_graph=True,retain_graph=True)
+			
+			# laplace of z_value
+			kernels[0:1,2:3,0,:,:] = div(kernels[0:1,1:2],offsets,retain_graph=False)
+			
+			#v and a
+			for l in range(orders[0]+1):
+				kernels[0:1,3:4,1,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
+			
+			kernels = kernels.reshape(1,1+1+1+1,2*(orders[0]+1),2).detach()
+		
+			kernels = kernels.reshape(1,1+1+1+1,2*(orders[0]+1),2).detach().clone()
+			superres_kernels[:,:,:,i::resolution_factor] = kernels
 		
 		# buffer kernels
-		superres_kernels = superres_kernels.permute(0,2,1,3,4)
+		superres_kernels = superres_kernels.permute(0,2,1,3)
 		kernel_buffer_wave_superres[res_key] = superres_kernels
 		save_buffers()
 	
-	output = F.conv_transpose2d(weights,superres_kernels[0],padding=0,stride=resolution_factor)
+	output = F.conv_transpose1d(weights,superres_kernels[0],padding=0,stride=resolution_factor)
 	
-	return output[:,0:1],output[:,1:3],output[:,3:4],output[:,4:5]
+	return output[:,0:1],output[:,1:2],output[:,2:3],output[:,3:4]
 
 
