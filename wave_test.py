@@ -25,7 +25,7 @@ params.width = 100 if params.width is None else params.width
 resolution_factor = params.resolution_factor
 orders_z = [params.orders_z]
 z_size = np.prod([i+1 for i in orders_z])
-types = ["reflection","oscillator","doppler"]# further types: "box","simple","super_simple"
+types = ["box"]# further types: "box","simple","super_simple"
 
 # initialize dataset
 dataset = Dataset(params.width,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
