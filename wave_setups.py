@@ -140,11 +140,11 @@ class Dataset():
 		
 		if type == "box": # block at random position
 			self.env_info[index]["phase"] = torch.rand(1)*2*np.pi
-			object_w = 5+((self.w/2-self.padding_x)/2)*np.random.rand() # object width / 2
+			object_w = 1#3+(2)*np.random.rand() # object width / 2
 			rand = np.random.rand(1)
 			f_max,f_min = 2,0.1 # could be properly parameterized
 			freq = 1/np.exp(rand*np.log(1/f_max)+(1-rand)*np.log(1/f_min)) # <- we want high frequencies to appear more often than low frequencies
-			object_x = np.random.randint(self.w//2-10,self.w//2+10)
+			object_x = np.random.randint(self.w//2-4,self.w//2+4)
 			object_vx = self.init_velocity*(np.random.rand()-0.5)*2
 			
 			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
@@ -160,55 +160,43 @@ class Dataset():
 		
 		if type == "doppler":# constant moving block (for results)
 			self.env_info[index]["phase"] = 0
-			object_w = 10
-			object_h = 10
+			object_w = 1
 			rand = np.random.rand(1)
 			freq = 1
-			object_y = self.h//2
 			object_x = self.w//2
-			object_vx = 0
-			object_vy = 0.6
+			object_vx = 0.6
+			# object_vy = 0.6
 			
-			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = 1
-			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = np.sin(self.env_info[index]["phase"])
+			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
+			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = np.sin(self.env_info[index]["phase"])
 			
 			self.env_info[index]["x"] = object_x
-			self.env_info[index]["y"] = object_y
 			self.env_info[index]["vx"] = object_vx
-			self.env_info[index]["vy"] = object_vy
-			self.env_info[index]["h"] = object_h
 			self.env_info[index]["w"] = object_w
 			self.env_info[index]["time"] = 0
 			self.env_info[index]["freq"] = freq
 			self.mousex = object_x
-			self.mousey = object_y
 			self.mousev = freq
 		
 		if type == "reflection":# reflection (for results)
 			self.env_info[index]["phase"] = 0
-			object_w = 10
-			object_h = 10
+			object_w = 1
 			rand = np.random.rand(1)
 			freq = 1
-			object_y = self.h//4*3
 			object_x = self.w//2
 			object_vx = 0
 			object_vy = 0
 			
-			self.z_mask_full_res[index,:,:(self.w//2*self.resolution_factor),((self.h//2-2)*self.resolution_factor):((self.h//2+2)*self.resolution_factor)] = 1
-			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = 1
-			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = np.sin(self.env_info[index]["phase"])
+			self.z_mask_full_res[index,:,:(self.w//2*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
+			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = np.sin(self.env_info[index]["phase"])
 			
 			self.env_info[index]["x"] = object_x
-			self.env_info[index]["y"] = object_y
 			self.env_info[index]["vx"] = object_vx
-			self.env_info[index]["vy"] = object_vy
-			self.env_info[index]["h"] = object_h
 			self.env_info[index]["w"] = object_w
 			self.env_info[index]["time"] = 0
 			self.env_info[index]["freq"] = freq
 			self.mousex = object_x
-			self.mousey = object_y
 			self.mousev = freq
 		
 		self.z_cond[index:(index+1)] = f.avg_pool1d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
@@ -280,8 +268,6 @@ class Dataset():
 			
 			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor)] = 1
 			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):] = 1
-			self.z_mask_full_res[index,:,:] = 1
-			self.z_mask_full_res[index,:,:] = 1
 			
 			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
 			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = np.sin(self.env_info[index]["phase"])
@@ -294,18 +280,14 @@ class Dataset():
 		
 		if self.env_info[index]["type"] == "doppler":
 			time = self.env_info[index]["time"]
-			object_h = self.env_info[index]["h"]
 			object_w = self.env_info[index]["w"]
 			vx_old = self.env_info[index]["vx"]
-			vy_old = self.env_info[index]["vy"]
 			self.env_info[index]["phase"] += self.env_info[index]["freq"]
 			
 			freq = self.env_info[index]["freq"]
 			object_vx = vx_old
-			object_vy = vy_old
 			
 			object_x = self.env_info[index]["x"]+(vx_old+object_vx)/2*self.dt
-			object_y = self.env_info[index]["y"]+(vy_old+object_vy)/2*self.dt
 			
 			if object_x < object_w + self.padding_x + 1:
 				object_x = object_w + self.padding_x + 1
@@ -314,46 +296,39 @@ class Dataset():
 				object_x = self.w - object_w - self.padding_x - 1
 				object_vx = -object_vx
 				
-			if object_y < object_h + self.padding_y + 1:
-				object_y = object_h + self.padding_y + 1
-				object_vy = -object_vy
-			if object_y > self.h - object_h - self.padding_y - 1:
-				object_y = self.h - object_h - self.padding_y - 1
-				object_vy = -object_vy
+			# if object_y < object_h + self.padding_y + 1:
+			# 	object_y = object_h + self.padding_y + 1
+			# 	object_vy = -object_vy
+			# if object_y > self.h - object_h - self.padding_y - 1:
+			# 	object_y = self.h - object_h - self.padding_y - 1
+			# 	object_vy = -object_vy
 			
 			self.z_mask_full_res[index] = 0
 			self.z_cond_full_res[index] = 0
 			
-			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor),:] = 1
-			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):,:] = 1
-			self.z_mask_full_res[index,:,:,:(self.padding_y*self.resolution_factor)] = 1
-			self.z_mask_full_res[index,:,:,-(self.padding_y*self.resolution_factor):] = 1
+			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):] = 1
+			self.z_mask_full_res[index,:,:] = 1
 			
-			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = 1
-			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = np.sin(self.env_info[index]["phase"])
+			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
+			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = np.sin(self.env_info[index]["phase"])
 			self.z_cond_full_res[index] = self.z_cond_full_res[index]*self.z_mask_full_res[index]
 			
 			self.env_info[index]["x"] = object_x
-			self.env_info[index]["y"] = object_y
 			self.env_info[index]["vx"] = object_vx
-			self.env_info[index]["vy"] = object_vy
 			self.env_info[index]["freq"] = freq
 			self.env_info[index]["time"] = time + 1
 		
 		if self.env_info[index]["type"] == "reflection":
 			time = self.env_info[index]["time"]
-			object_h = self.env_info[index]["h"]
 			object_w = self.env_info[index]["w"]
 			vx_old = self.env_info[index]["vx"]
-			vy_old = self.env_info[index]["vy"]
 			self.env_info[index]["phase"] += self.env_info[index]["freq"]
 			
 			freq = self.env_info[index]["freq"]
 			object_vx = vx_old
-			object_vy = vy_old
 			
 			object_x = self.env_info[index]["x"]+(vx_old+object_vx)/2*self.dt
-			object_y = self.env_info[index]["y"]+(vy_old+object_vy)/2*self.dt
 			
 			if object_x < object_w + self.padding_x + 1:
 				object_x = object_w + self.padding_x + 1
@@ -362,30 +337,27 @@ class Dataset():
 				object_x = self.w - object_w - self.padding_x - 1
 				object_vx = -object_vx
 				
-			if object_y < object_h + self.padding_y + 1:
-				object_y = object_h + self.padding_y + 1
-				object_vy = -object_vy
-			if object_y > self.h - object_h - self.padding_y - 1:
-				object_y = self.h - object_h - self.padding_y - 1
-				object_vy = -object_vy
+			# if object_y < object_h + self.padding_y + 1:
+			# 	object_y = object_h + self.padding_y + 1
+			# 	object_vy = -object_vy
+			# if object_y > self.h - object_h - self.padding_y - 1:
+			# 	object_y = self.h - object_h - self.padding_y - 1
+			# 	object_vy = -object_vy
 			
 			self.z_mask_full_res[index] = 0
 			self.z_cond_full_res[index] = 0
 			
-			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor),:] = 1
-			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):,:] = 1
-			self.z_mask_full_res[index,:,:,:(self.padding_y*self.resolution_factor)] = 1
-			self.z_mask_full_res[index,:,:,-(self.padding_y*self.resolution_factor):] = 1
-			self.z_mask_full_res[index,:,:(self.w//2*self.resolution_factor),((self.h//2-2)*self.resolution_factor):((self.h//2+2)*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,:(self.padding_x*self.resolution_factor)] = 1
+			self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):] = 1
+			self.z_mask_full_res[index,:,:] = 1
+			self.z_mask_full_res[index,:,:(self.w//2*self.resolution_factor)] = 1
 			
-			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = 1
-			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w)),int(self.resolution_factor*(object_y-object_h)):int(self.resolution_factor*(object_y+object_h))] = np.sin(self.env_info[index]["phase"])
+			self.z_mask_full_res[index,:,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = 1
+			self.z_cond_full_res[index,0,int(self.resolution_factor*(object_x-object_w)):int(self.resolution_factor*(object_x+object_w))] = np.sin(self.env_info[index]["phase"])
 			self.z_cond_full_res[index] = self.z_cond_full_res[index]*self.z_mask_full_res[index]
 			
 			self.env_info[index]["x"] = object_x
-			self.env_info[index]["y"] = object_y
 			self.env_info[index]["vx"] = object_vx
-			self.env_info[index]["vy"] = object_vy
 			self.env_info[index]["freq"] = freq
 			self.env_info[index]["time"] = time + 1
 		

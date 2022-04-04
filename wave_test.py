@@ -31,9 +31,9 @@ types = ["box"]# further types: "box","simple","super_simple"
 dataset = Dataset(params.width,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
 
 # initialize windows / movies / mouse handler
-cv2.namedWindow('z',cv2.WINDOW_NORMAL)
-cv2.namedWindow('v',cv2.WINDOW_NORMAL)
-cv2.namedWindow('a',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('z',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('v',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('a',cv2.WINDOW_NORMAL)
 
 if save_movie:
 	fourcc = cv2.VideoWriter_fourcc(*'MJPG')
@@ -47,9 +47,9 @@ def mousePosition(event,x,y,flags,param):
 		dataset.mousex = y/resolution_factor
 		dataset.mousey = x/resolution_factor
 
-cv2.setMouseCallback("z",mousePosition)
-cv2.setMouseCallback("v",mousePosition)
-cv2.setMouseCallback("a",mousePosition)
+# cv2.setMouseCallback("z",mousePosition)
+# cv2.setMouseCallback("v",mousePosition)
+# cv2.setMouseCallback("a",mousePosition)
 
 # load fluid model
 model = toCuda(get_Net(params))
