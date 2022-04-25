@@ -1,4 +1,3 @@
-from fluid_setups import Dataset
 from wave_setups import Dataset
 from spline_models import superres_2d_wave,get_Net,interpolate_wave_states_2
 from operators import vector2HSV
@@ -79,13 +78,20 @@ while not exit_loop:
 	x = np.linspace(0,100,800)
 	y = np.linspace(-2,2,800)
 	line1, = ax.plot(x, y, 'r-')
+	interface_location = 36
+	# plt.axvline(x=interface_location, color='black', linestyle='dotted')
+
+	z_stiffness = 0.1*torch.ones((1,1,99)).to(torch.device("cuda"))
+	# z_stiffness[:,:,:interface_location] = 0.05
+	# z_stiffness[:,:,interface_location] = 0.075
+	# z_stiffness[:,:,interface_location:] = 0.1
 	for i in range(params.average_sequence_length):
 		
 		# obtain boundary conditions / mask as well as spline coefficients of previous timestep from dataset
-		z_cond,z_mask,old_hidden_state,_,_,_ = toCuda(dataset.ask())
-		
+		z_cond,z_mask,old_hidden_state,_,_,_,_,_ = toCuda(dataset.ask())
+	
 		# apply wave model to obtain spline coefficients of next timestep
-		new_hidden_state = model(old_hidden_state,z_cond,z_mask)
+		new_hidden_state = model(old_hidden_state,z_cond,z_mask,z_stiffness)
 		
 		# feed new spline coefficients back to the dataset
 		dataset.tell(toCpu(new_hidden_state))

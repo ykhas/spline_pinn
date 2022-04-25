@@ -106,9 +106,10 @@ class wave_model(nn.Module):
 		self.p_size = np.prod([i+1 for i in orders_p])
 		self.hidden_state_size = self.v_size + self.p_size
 		self.residuals = residuals
+		num_stiffness_tensors = 1
 		
 		self.interpol = nn.Conv1d(input_size,interpolation_size,kernel_size=2) # interpolate v_cond (2) and v_mask (1) from 4 surrounding fields
-		self.conv1 = nn.Conv1d(self.hidden_state_size+interpolation_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
+		self.conv1 = nn.Conv1d(self.hidden_state_size+interpolation_size + num_stiffness_tensors, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
 		self.conv2 = nn.Conv1d(self.hidden_size, self.hidden_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
 		self.conv3 = nn.Conv1d(self.hidden_size, self.hidden_state_size,kernel_size=3,padding=1) # input: hidden_state + interpolation of v_cond and v_mask
 		
@@ -118,7 +119,7 @@ class wave_model(nn.Module):
 			self.output_scaler_wave = toCuda(torch.Tensor([5,0.5,0.5,0.05, 5,0.5,0.5,0.05]).unsqueeze(0).unsqueeze(2).unsqueeze(3))
 		
 	
-	def forward(self,hidden_state,v_cond,v_mask):
+	def forward(self,hidden_state,v_cond,v_mask, stiffness):
 		"""
 		:hidden_state: old hidden state of size: bs x hidden_state_size x (w-1) x (h-1)
 		:v_cond: velocity (dirichlet) conditions on boundaries (average value within cell): bs x 2 x w x h
@@ -129,7 +130,7 @@ class wave_model(nn.Module):
 		
 		x = self.interpol(x)
 		
-		x = torch.cat([hidden_state,x],dim=1)
+		x = torch.cat([hidden_state,x,stiffness],dim=1)
 		x = torch.relu(self.conv1(x))
 		x = torch.relu(self.conv2(x))
 		out = self.conv3(x)

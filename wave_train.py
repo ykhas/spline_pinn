@@ -65,11 +65,12 @@ for epoch in range(params.load_index,params.n_epochs):
 	for i in range(params.n_batches_per_epoch):
 		print(f"{epoch} / {params.n_epochs}: {i}")
 		
+		TEMP_DOMAIN_BOUNDARY_INDEX = 33
 		# retrieve batch from training pool
-		z_cond,z_mask,old_hidden_state,offsets,sample_z_conds,sample_z_masks = toCuda(dataset.ask())
+		z_cond,z_mask,old_hidden_state, z_stiffnesses, offsets,sample_z_conds,sample_z_masks, sample_z_stiffnesses = toCuda(dataset.ask())
 		
 		# predict new hidden state that contains the spline coeffients of the next timestep
-		new_hidden_state = model(old_hidden_state,z_cond,z_mask)
+		new_hidden_state = model(old_hidden_state,z_cond,z_mask,z_stiffnesses)
 		
 		# compute physics informed loss
 		loss_total = 0
@@ -77,6 +78,7 @@ for epoch in range(params.load_index,params.n_epochs):
 			offset = torch.floor(offsets[j]*resolution_factor)/resolution_factor
 			sample_z_cond = sample_z_conds[j]
 			sample_z_mask = sample_z_masks[j]
+			sample_z_stiffness = sample_z_stiffnesses[j]
 			sample_domain_mask = 1-sample_z_mask
 			# optionally: put additional border_weight on domain boundaries:
 			sample_z_mask = (sample_z_mask + sample_z_mask*diffuse(sample_domain_mask)*params.border_weight).detach()
@@ -88,11 +90,15 @@ for epoch in range(params.load_index,params.n_epochs):
 			loss_boundary = torch.mean(sample_z_mask[:,:,1:-1]*((z-sample_z_cond[:,:,1:-1])**2),dim=(1,2))
 			loss_boundary_reg = torch.mean(sample_z_mask[:,:,1:-1]*(a**2),dim=(1,2))
 			
+			# boundary between domains
+
+			# loss_domain = 10 * torch.var(z[:,:,TEMP_DOMAIN_BOUNDARY_INDEX - 1:TEMP_DOMAIN_BOUNDARY_INDEX + 2],dim=(1,2))
 			# loss to connect dz_dt and v
 			loss_v = torch.mean((v-dz_dt)**2,dim=(1,2))
 			
 			# wave equation loss
-			loss_wave = torch.mean((a-stiffness*laplace_z+damping*v)**2,dim=(1,2))
+			laplace = F.interpolate(sample_z_stiffness[:,:,:], sample_z_stiffness.shape[2] - 1)*laplace_z
+			loss_wave = torch.mean((a-laplace+damping*v)**2,dim=(1,2))
 			
 			loss_total = loss_total + params.loss_bound*loss_boundary + params.loss_bound_reg*loss_boundary_reg + params.loss_wave*loss_wave + params.loss_v*loss_v
 		
@@ -124,6 +130,7 @@ for epoch in range(params.load_index,params.n_epochs):
 			logger.log(f"loss_wave",torch.mean(loss_wave).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			logger.log(f"loss_v",torch.mean(loss_v).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			logger.log(f"loss_boundary",torch.mean(loss_boundary).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
+			# logger.log(f"loss_domain", torch.mean(loss_domain).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			
 	if params.log:
 		logger.save_state(model,optimizer,epoch+1)

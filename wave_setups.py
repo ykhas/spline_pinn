@@ -73,8 +73,11 @@ class Dataset():
 		
 		self.z_cond = torch.zeros(dataset_size,1,w)
 		self.z_mask = torch.zeros(dataset_size,1,w)
+		self.z_stiffness = torch.zeros(dataset_size,1,w - 1)
 		self.z_cond_full_res = torch.zeros(dataset_size,1,self.w_full_res)
 		self.z_mask_full_res = torch.zeros(dataset_size,1,self.w_full_res)
+		self.z_stiffness_full_res = torch.zeros(dataset_size,1,self.w_full_res - resolution_factor)
+		self.split_indices = torch.zeros(dataset_size)
 		
 		self.hidden_states = torch.zeros(dataset_size,hidden_size,w-1)#hidden state is 1 smaller than dataset-size!
 		self.t = 0
@@ -94,6 +97,9 @@ class Dataset():
 		self.z_cond_full_res[index] = 0
 		self.z_mask_full_res[index] = 1
 		self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):(self.padding_x*self.resolution_factor)] = 0
+		self.z_stiffness_full_res[index] = 0.1 
+		self.split_indices[index] = torch.randint(0, self.w_full_res, size=(1,1))
+		self.z_stiffness_full_res[index,:,int(self.split_indices[index]):] = 0.5 
 		
 		type = np.random.choice(self.types)
 		self.env_info[index]["type"] = type
@@ -201,6 +207,7 @@ class Dataset():
 		
 		self.z_cond[index:(index+1)] = f.avg_pool1d(self.z_cond_full_res[index:(index+1)],self.resolution_factor)
 		self.z_mask[index:(index+1)] = f.avg_pool1d(self.z_mask_full_res[index:(index+1)],self.resolution_factor)
+		self.z_stiffness[index:(index+1)] = f.avg_pool1d(self.z_stiffness_full_res[index:(index+1)], self.resolution_factor)
 	
 	def update_env(self,index):
 		#CODO: introduce "layers" in between time-steps (e.g. for dt/2)
@@ -397,15 +404,17 @@ class Dataset():
 		grid_offsets = []
 		sample_z_cond = []
 		sample_z_mask = []
+		sample_z_stiffness = []
 		for i in range(self.n_samples):
 			offset = torch.rand(2)
 			grid_offsets.append(offset)
 			x_offset = min(int(self.resolution_factor*offset[0]),self.resolution_factor-1)
 			sample_z_cond.append(self.z_cond_full_res[self.indices,:,x_offset::self.resolution_factor])
 			sample_z_mask.append(self.z_mask_full_res[self.indices,:,x_offset::self.resolution_factor])
+			sample_z_stiffness.append(self.z_stiffness_full_res[self.indices,:,x_offset::self.resolution_factor])
 		
 		
-		return self.z_cond[self.indices],self.z_mask[self.indices],self.hidden_states[self.indices],grid_offsets,sample_z_cond,sample_z_mask
+		return self.z_cond[self.indices],self.z_mask[self.indices],self.hidden_states[self.indices], self.z_stiffness[self.indices], grid_offsets,sample_z_cond,sample_z_mask, sample_z_stiffness
 	
 	def tell(self,hidden_state):
 		
