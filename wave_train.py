@@ -65,7 +65,6 @@ for epoch in range(params.load_index,params.n_epochs):
 	for i in range(params.n_batches_per_epoch):
 		print(f"{epoch} / {params.n_epochs}: {i}")
 		
-		TEMP_DOMAIN_BOUNDARY_INDEX = 33
 		# retrieve batch from training pool
 		z_cond,z_mask,old_hidden_state, z_stiffnesses, offsets,sample_z_conds,sample_z_masks, sample_z_stiffnesses = toCuda(dataset.ask())
 		
@@ -90,9 +89,6 @@ for epoch in range(params.load_index,params.n_epochs):
 			loss_boundary = torch.mean(sample_z_mask[:,:,1:-1]*((z-sample_z_cond[:,:,1:-1])**2),dim=(1,2))
 			loss_boundary_reg = torch.mean(sample_z_mask[:,:,1:-1]*(a**2),dim=(1,2))
 			
-			# boundary between domains
-
-			# loss_domain = 10 * torch.var(z[:,:,TEMP_DOMAIN_BOUNDARY_INDEX - 1:TEMP_DOMAIN_BOUNDARY_INDEX + 2],dim=(1,2))
 			# loss to connect dz_dt and v
 			loss_v = torch.mean((v-dz_dt)**2,dim=(1,2))
 			
@@ -130,7 +126,6 @@ for epoch in range(params.load_index,params.n_epochs):
 			logger.log(f"loss_wave",torch.mean(loss_wave).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			logger.log(f"loss_v",torch.mean(loss_v).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			logger.log(f"loss_boundary",torch.mean(loss_boundary).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
-			# logger.log(f"loss_domain", torch.mean(loss_domain).detach().cpu().numpy(),epoch*params.n_batches_per_epoch+i)
 			
 	if params.log:
 		logger.save_state(model,optimizer,epoch+1)

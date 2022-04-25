@@ -8,8 +8,17 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import time,os
+import torch.nn.functional as F
 #from numpy2vtk import imageToVTK
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+#### UPDATE THESE VALUES TO CHANGE POSITION OF INTERFACE AND ASSOCIATED STIFFNESS CONST. ####
+interface_location = 56
+z_stiffness = torch.empty((1,1,99)).to(torch.device("cuda"))
+z_stiffness[:,:,:interface_location] = 0.99
+z_stiffness[:,:,interface_location] = 0.5
+z_stiffness[:,:,interface_location:] = 0.01
+
 
 
 torch.manual_seed(0)
@@ -65,6 +74,18 @@ v_old = None
 
 # simulation loop
 exit_loop = False
+
+
+def compute_loss(old_hidden_state, new_hidden_state, z_mask, z_cond):
+	''' Returns the boundary and wave losses for a full time step at a random spacial offset'''
+	offset = toCuda(torch.randn(2))
+	offset[1] = params.dt # always use a time offset of dt for final loss
+	z,grad_z,laplace_z,dz_dt,v,a = interpolate_wave_states_2(toCuda(old_hidden_state),toCuda(new_hidden_state),offset,dt=params.dt,orders_z=orders_z)
+	loss_boundary = torch.mean(z_mask[:,:,1:-1]*((z-z_cond[:,:,1:-1])**2),dim=(1,2))
+	laplace = F.interpolate(z_stiffness[:,:,:], z_stiffness.shape[2] - 1)*laplace_z
+	loss_wave = torch.mean((a-laplace+params.damping*v)**2,dim=(1,2))
+	return loss_boundary, loss_wave
+	
 while not exit_loop:
 	
 	# reset environment (choose new random environment from types-list and reset z / v_z field to 0)
@@ -78,13 +99,11 @@ while not exit_loop:
 	x = np.linspace(0,100,800)
 	y = np.linspace(-2,2,800)
 	line1, = ax.plot(x, y, 'r-')
-	interface_location = 36
-	# plt.axvline(x=interface_location, color='black', linestyle='dotted')
+	plt.axvline(x=interface_location, color='black', linestyle='dotted')
 
-	z_stiffness = 0.1*torch.ones((1,1,99)).to(torch.device("cuda"))
-	# z_stiffness[:,:,:interface_location] = 0.05
-	# z_stiffness[:,:,interface_location] = 0.075
-	# z_stiffness[:,:,interface_location:] = 0.1
+	boundary_loss = []
+	wave_loss = []
+	num_frames_between_loss_save = 10
 	for i in range(params.average_sequence_length):
 		
 		# obtain boundary conditions / mask as well as spline coefficients of previous timestep from dataset
@@ -97,101 +116,35 @@ while not exit_loop:
 		dataset.tell(toCpu(new_hidden_state))
 		
 		# visualize fields
-		if i%n_iterations_per_visualization==0:
 			
-			print(f"env_info: {dataset.env_info[0]}")
-			
-			# obtain interpolated field values for z,grad_z,laplace_z,v,a from spline coefficients
-			z,grad_z,laplace_z,v = superres_2d_wave(new_hidden_state[0:1],orders_z,resolution_factor)
-			if v_old is None:
-				v_old = v
-			
-			# visualize field values
-			image = torch.clamp(0.5*z[0,0]+0.5, min=0, max=1).cpu().detach().clone()
-			
-			line1.set_ydata(image.numpy())
-			fig.canvas.draw()
-			fig.canvas.flush_events()
-
-			# plt.plot(image.numpy())
-			# plt.show()
-			# image = torch.clamp(0.5*image+0.5,min=0,max=1)
-			# image = toCpu(image).unsqueeze(1).repeat(1,3).numpy()
-			# if save_movie:
-			# 	movie_z.write((255*image).astype(np.uint8))
-			# cv2.imshow('z',image)
-			
-			# image = v[0,0].cpu().detach().clone()
-			# image = torch.clamp(0.2*image+0.5,min=0,max=1)
-			# image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
-			# if save_movie:
-			# 	movie_v.write((255*image).astype(np.uint8))
-			# cv2.imshow('v',image)
-			
-			# a = (v-v_old)/(params.dt*n_iterations_per_visualization)
-			# image = a[0,0].cpu().detach().clone()
-			# image = torch.clamp(0.2*image+0.5,min=0,max=1)
-			# image = toCpu(image).unsqueeze(2).repeat(1,1,3).numpy()
-			# if save_movie:
-			# 	movie_a.write((255*image).astype(np.uint8))
-			# cv2.imshow('a',image)
-			
-			key = cv2.waitKey(1)
-			
-			if key==ord('x'): # increase frequency (works only for 'box' environment)
-				dataset.mousev*=1.1
-			elif key==ord('y'): # decrease frequency (works only for 'box' environment)
-				dataset.mousev/=1.1
-			
-			if key==ord('n'): # start with new environment
-				break
-			
-			if key==ord('q'): # quit simulation
-				exit_loop = True
-				break
-			
-			if key==ord('p'): # print fields using matplotlib
-				fig = plt.figure(1,(12,6))
-				ax = fig.add_subplot(1,2,1)
-				cond_mask = dataset.z_mask_full_res[0,0]
-				pm = np.ma.masked_where(toCpu(cond_mask).numpy()==1, z[0,0].cpu().detach().clone())
-				palette = plt.cm.viridis#plasma#gnuplot2#magma#inferno#
-				palette.set_bad('k',1.0)
-				plt.imshow(pm,cmap=palette)
-				plt.axis('off')
-				plt.title("z")
-				divider = make_axes_locatable(ax)
-				cax = divider.append_axes("right",size="5%",pad=0.05)
-				plt.colorbar(cax=cax)
-				
-				ax = fig.add_subplot(1,2,2)
-				cond_mask = dataset.z_mask_full_res[0,0]
-				pm = np.ma.masked_where(toCpu(cond_mask).numpy()==1, v[0,0].cpu().detach().clone())
-				plt.imshow(pm,cmap=palette)
-				plt.axis('off')
-				plt.title("v")
-				divider = make_axes_locatable(ax)
-				cax = divider.append_axes("right",size="5%",pad=0.05)
-				plt.colorbar(cax=cax)
-				
-				name = dataset.env_info[0]["type"]
-				if name=="image":
-					name = name+"_"+dataset.env_info[0]["image"]
-				plt.savefig(f"plots/wave_z_v_{name}_{get_hyperparam_wave(params)}.png", bbox_inches='tight')
-				plt.show()
-			
-			v_old=v
-			
-			print(f"FPS: {last_FPS}")
-			FPS += 1
-			if time.time()-last_time>=1:
-				last_time = time.time()
-				last_FPS=FPS
-				FPS = 0
-
-if save_movie:
-	movie_z.release()
-	movie_v.release()
-	movie_a.release()
-
+		print(f"env_info: {dataset.env_info[0]}")
+		
+		# obtain interpolated field values for z,grad_z,laplace_z,v,a from spline coefficients
+		z,grad_z,laplace_z,v = superres_2d_wave(new_hidden_state[0:1],orders_z,resolution_factor)
+		
+		# visualize field values
+		# clamp values into range of [0,1]
+		image = torch.clamp(0.5*z[0,0]+0.5, min=0, max=1).cpu().detach().clone()
+		
+		line1.set_ydata(image.numpy())
+		fig.canvas.draw()
+		fig.canvas.flush_events()
+		
+		if params.show_test_loss and i % num_frames_between_loss_save == 0:
+			boundary_loss_value, wave_loss_value = compute_loss(old_hidden_state[0:1], new_hidden_state[0:1],
+			 z_mask, z_cond)
+			boundary_loss.append(toCpu(boundary_loss_value).numpy())
+			wave_loss.append(toCpu(wave_loss_value).numpy())
+		print(f"FPS: {last_FPS}")
+		FPS += 1
+		if time.time()-last_time>=1:
+			last_time = time.time()
+			last_FPS=FPS
+			FPS = 0
+	fig2 = plt.figure()
+	ax2 = fig2.add_subplot(111)
+	ax2.plot(boundary_loss, '.', label='Boundary Loss')
+	ax2.plot(wave_loss, '.', label='Wave Loss')
+	ax2.legend()
+	plt.show()
 

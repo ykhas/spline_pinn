@@ -190,8 +190,7 @@ class Logger():
 				index = os.path.splitext(natsorted(files)[-1])[0]
 				break
 		
-		# path = 'Logger/{}/{}/states/{}.state'.format(self.name,datetime,index)
-		path = 'Logger/wave net Wave_model; hs 20; oz 2; stiffness 0.1; damping 0.1; dt 1;/2022-04-04 16:34:23/states/195.state'
+		path = 'Logger/{}/{}/states/{}.state'.format(self.name,datetime,index)
 		state = torch.load(path)
 		
 		if type(model) is not list:

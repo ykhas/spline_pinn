@@ -72,6 +72,9 @@ def params():
 	parser.add_argument('--n_warmup_steps', default=None, type=int, help='number of warm up steps to perform when loading model in order to initialize dataset (default: None)')
 	parser.add_argument('--load_optimizer', default=False, type=str2bool, help='load state of optimizer (default: True)')
 	parser.add_argument('--load_latest', default=False, type=str2bool, help='load latest version for training (if True: leave load_date_time and load_index None. default: False)')
+
+	# test parameters
+	parser.add_argument('--show_test_loss', default=False, type=str2bool, help='show test loss after the "average sequence length" passes')
 	
 	# parse parameters
 	params = parser.parse_args()

@@ -233,15 +233,14 @@ p5 = [p5_1,p5_2,p5_3,p5_4,p5_5]
 
 pi = [p1,p2,p3,p4,p5] # list of lists of basis splines for different orders
 
-def p_multidim(offsets,orders,indices):
+def get_basis_spline(offsets,orders,indices):
 	"""
-	multidimensional basis spline of specified orders and indices
+	basis spline of specified order and index
 	:offsets: offsets of size: bs x n_dims x ...
 	:orders: orders of spline for each dimension (note: counting starts at 0 => 0 ~ 1st order, 1 ~ 2nd order, 2 ~ 3rd order)
 	:indices: indices of spline for each dimension (note: counting starts at 0)
 	"""
-	a = torch.cat([pi[orders[i]][indices[i]](offsets[:,i:(i+1)]).unsqueeze(0) for i in range(len(orders))])
-	return a
+	return torch.cat([pi[orders[i]][indices[i]](offsets[:,i:(i+1)]).unsqueeze(0) for i in range(len(orders))])
 
 # buffering interpolation kernels significantly speeds up computations
 offset_summary = toCuda(torch.tensor([[0,1]]).unsqueeze(0))
@@ -446,7 +445,7 @@ def interpolate_2d_velocity(weights,offsets,orders=[2,2]):
 		kernels = toCuda(torch.zeros(1,1+2+4+2,(orders[0]+1),(orders[1]+1),2,2))
 		for l in range(orders[0]+1):
 			for m in range(orders[1]+1):
-				kernels[0:1,0:1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+				kernels[0:1,0:1,l,m,:,:] = get_basis_spline(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
 		
 		# velocity
 		kernels[0:1,1:3,:,:,:,:] = rot(kernels[:,0:1,:,:,:,:],offsets,create_graph=True,retain_graph=True)
@@ -484,7 +483,7 @@ def superres_2d_velocity(weights,orders=[2,2],resolution_factor=1):
 				kernels = toCuda(torch.zeros(1,1+2+4+2,(orders[0]+1),(orders[1]+1),2,2))
 				for l in range(orders[0]+1):
 					for m in range(orders[1]+1):
-						kernels[0:1,0:1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+						kernels[0:1,0:1,l,m,:,:] = get_basis_spline(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
 				
 				# velocity
 				kernels[0:1,1:3,:,:,:,:] = rot(kernels[0:1,0:1,:,:,:,:],offsets,create_graph=True,retain_graph=True)
@@ -527,7 +526,7 @@ def interpolate_2d_pressure(weights,offsets,orders=[0,0]):
 		kernels = toCuda(torch.zeros(1,1+2,(orders[0]+1),(orders[1]+1),2,2))
 		for l in range(orders[0]+1):
 			for m in range(orders[1]+1):
-				kernels[0:1,0:1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+				kernels[0:1,0:1,l,m,:,:] = get_basis_spline(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
 		
 		# grad p
 		kernels[0:1,1:3,:,:,:,:] = grad(kernels[:,0:1,:,:,:,:],offsets,create_graph=True,retain_graph=True)
@@ -558,7 +557,7 @@ def superres_2d_pressure(weights,orders=[0,0],resolution_factor=1):
 				kernels = toCuda(torch.zeros(1,1+2,(orders[0]+1),(orders[1]+1),2,2))
 				for l in range(orders[0]+1):
 					for m in range(orders[1]+1):
-						kernels[0:1,0:1,l,m,:,:] = p_multidim(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
+						kernels[0:1,0:1,l,m,:,:] = get_basis_spline(offsets[:,:,l,m],[orders[0],orders[1]],[l,m])
 				
 				# grad p
 				kernels[0:1,1:3,:,:,:,:] = grad(kernels[:,0:1,:,:,:,:],offsets,create_graph=True,retain_graph=True)
@@ -597,7 +596,7 @@ def interpolate_2d_wave(weights,offsets,orders=[1,1]):
 		# z_value
 		kernels = toCuda(torch.zeros(1,1+1+1,(orders[0]+1),2))
 		for l in range(orders[0]+1):
-			kernels[0:1,0:1,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
+			kernels[0:1,0:1,l,:] = get_basis_spline(offsets[:,:,l],[orders[0]],[l])
 		
 		# gradients of z_value
 		kernels[0:1,1:2] = grad(kernels[0:1,0:1,:,:,],offsets,create_graph=True,retain_graph=True)
@@ -632,17 +631,17 @@ def superres_2d_wave(weights,orders=[1,1],resolution_factor=1):
 			
 			kernels = toCuda(torch.zeros(1,1+1+1+1,2,(orders[0]+1),2))
 			for l in range(orders[0]+1):
-				kernels[0:1,0:1,0,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
+				kernels[0:1,0:1,0,l,:] = get_basis_spline(offsets[:,:,l],[orders[0]],[l])
 			
-			# gradients of z_value
+			# gradient of z_value
 			kernels[0:1,1:2,0,:,:,] = grad(kernels[0:1,0:1,0,:,:,],offsets,create_graph=True,retain_graph=True)
 			
 			# laplace of z_value
 			kernels[0:1,2:3,0,:,:] = div(kernels[0:1,1:2],offsets,retain_graph=False)
 			
-			#v and a
+			# get v
 			for l in range(orders[0]+1):
-				kernels[0:1,3:4,1,l,:] = p_multidim(offsets[:,:,l],[orders[0]],[l])
+				kernels[0:1,3:4,1,l,:] = get_basis_spline(offsets[:,:,l],[orders[0]],[l])
 			
 			kernels = kernels.reshape(1,1+1+1+1,2*(orders[0]+1),2).detach()
 		
