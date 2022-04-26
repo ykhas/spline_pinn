@@ -13,11 +13,11 @@ import torch.nn.functional as F
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 #### UPDATE THESE VALUES TO CHANGE POSITION OF INTERFACE AND ASSOCIATED STIFFNESS CONST. ####
-interface_location = 56
-z_stiffness = torch.empty((1,1,99)).to(torch.device("cuda"))
-z_stiffness[:,:,:interface_location] = 0.99
+interface_location = 36
+z_stiffness = torch.ones((1,1,99)).to(torch.device("cuda"))
+z_stiffness[:,:,:interface_location] = 0.01
 z_stiffness[:,:,interface_location] = 0.5
-z_stiffness[:,:,interface_location:] = 0.01
+z_stiffness[:,:,interface_location+1:] = 0.99
 
 
 
@@ -33,7 +33,7 @@ params.width = 100 if params.width is None else params.width
 resolution_factor = params.resolution_factor
 orders_z = [params.orders_z]
 z_size = np.prod([i+1 for i in orders_z])
-types = ["box"]# further types: "box","simple","super_simple"
+types = ["oscillator"]# further types: "box","simple","oscillator"
 
 # initialize dataset
 dataset = Dataset(params.width,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
@@ -133,8 +133,8 @@ while not exit_loop:
 		if params.show_test_loss and i % num_frames_between_loss_save == 0:
 			boundary_loss_value, wave_loss_value = compute_loss(old_hidden_state[0:1], new_hidden_state[0:1],
 			 z_mask, z_cond)
-			boundary_loss.append(toCpu(boundary_loss_value).numpy())
-			wave_loss.append(toCpu(wave_loss_value).numpy())
+			boundary_loss.append(np.log10(toCpu(boundary_loss_value).numpy()))
+			wave_loss.append(np.log10(toCpu(wave_loss_value).numpy()))
 		print(f"FPS: {last_FPS}")
 		FPS += 1
 		if time.time()-last_time>=1:

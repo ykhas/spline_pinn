@@ -39,58 +39,30 @@ The installation was tested on Ubuntu 18.04, but other operating systems should 
 
 ### Wave demo
 
-We also provide you with a pretrained model for the wave equation. To start the wave simulation, call:
+First of all, to see the meaning of all of the script parameters, you can run the following:
 
 ```
-python wave_test.py --net=Wave_model --stiffness=10 --damping=0.1
+python wave_train.py --help
 ```
 
-As for the fluid simulation, by pressing the following keys, you can:
+A pretrained model for the 1D damped wave equation is provided. To start the wave simulation, call:
 
-- "n": start a new (random) simulation  
-- "p": create a Visualization of the current fluid state with matplotlib  
-- "q": quit the simulation  
+```
+python wave_test.py --net=Wave_model --stiffness=0.1 --damping=0.1 --load_date_time='2022-04-04 16:34:23' --hidden_size=20 --orders_z=2 --load_index=195
+```
+
+To update the stiffness throughout the domain and the position of the interface, you can change lines 16-20 in wave\_test.py. You can also change the type of source term on line 36 of wave\_test.py
 
 ## Train your own PDE models
 
-The following lines of code show how you can train your own PDE models without having to worry about ground truth data.
-
-### Fluid model
-
-Let's assume, you want to train a new fluid model with viscosity mu=0.5 and density rho=4. The loss weight for the residuals of the Navier-Stokes equation (loss_domain_res or alpha in equation 9 of the paper respectively) is set to 10 and the loss for the domain boundaries (loss_bound or beta in equation 9 of the paper respectively) is set to 20. Then, simply call:
+You can train a wave model on domains with varying stiffnesses using the following command 
 
 ```
-python fluid_train.py --net=Fluid_model --hidden_size=50 --mu=0.5 --rho=4 --loss_domain_res=10 --loss_bound=20
+python wave_train.py --net=Wave_model --hidden_size=20 --damping=0.1 --loss_v=1 --loss_wave=0.1 --loss_bound=10 --average_sequence_length=200
 ```
 
-If you want to get more information about all the training parameters, call:
-
-```
-python fluid_train.py --help
-```
-
-If you want to oversee the training progress with tensorboard, run:
-
-```
-tensorboard --logdir=Logger/tensorboard
-```
-
-If you want to have a look at the outcome of your freshly trained model, call:
-
-```
-python fluid_test.py --net=Fluid_model --hidden_size=50 --mu=0.5 --rho=4
-```
-
-### Wave model
-
-Training of wave models works analogous to the training of fluid models. Let's assume, you want to train a model with stiffness=5 and damping=0.1, then call:
-
-```
-python wave_train.py --net=Wave_model --hidden_size=50 --stiffness=5 --damping=0.1 --loss_v=1 --loss_wave=0.1 --loss_bound=10
-```
-
-Here, loss_v, loss_wave and loss_bound correspond to alpha, beta and gamma in equation 13 of the paper respectively. 
-As for the fluid model, you can get more information about training parameters and launch tensorboard using the following commands:
+Here, loss_v, loss_wave and loss_bound correspond to alpha, beta and gamma in equation 13 of the paper on Spline-PINNs (Wandel et al. 2022) respectively. 
+You can get more information about training parameters and by launching tensorboard using the following commands:
 
 ```
 python wave_train.py --help  
