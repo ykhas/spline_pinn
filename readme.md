@@ -68,3 +68,7 @@ You can get more information about training parameters and by launching tensorbo
 python wave_train.py --help  
 tensorboard --logdir=Logger/tensorboard
 ```
+
+## Documentation
+
+Most documentation is auto-generated. Use comments within the wave_train.py and wave_test.py scripts as documentations for those files.
