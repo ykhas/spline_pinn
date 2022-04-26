@@ -150,6 +150,7 @@ def heaviside(x):
 
 # 1st order splines
 def p1_1(offsets):
+	'''Get first order hermite spline at the given coordinate offset'''
 	offsets = offsets*sign(offsets)
 	return (1-offsets)
 
@@ -157,27 +158,33 @@ p1 = [p1_1] # list of 1st order basis splines
 
 # 2nd order splines
 def p2_1(offsets):
+	'''Get second order hermite spline, index 1, at the given coordinate offset'''
 	offsets = offsets*sign(offsets)
 	return (1-offsets)**2*(1+2*offsets)
 
 def p2_2(offsets):
+	'''Get second order hermite spline, index 2, at the given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return sign(offsets)*(1-abs_offsets)**2*(abs_offsets)
 
 # derivatives
 def dp2_1(offsets):#first derivative (needs to be devided by dt)
+	'''Get derivative of 2nd order spline, index 1, at given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return sign(offsets)*(6*abs_offsets**2-6*abs_offsets)
 
 def dp2_2(offsets):
+	'''Get derivative of 2nd order spline, index 2, at given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return 3*abs_offsets**2 - 4*abs_offsets + 1
 
 def d2p2_1(offsets):#2nd derivative (needs to be devided by dt**2)
+	'''Get 2nd derivative of 2nd order spline, index 1, at given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return 12*abs_offsets - 6
 
 def d2p2_2(offsets):
+	'''Get 2nd derivative of 2nd order spline, index 2, at given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return sign(offsets)*(6*abs_offsets-4)
 
@@ -185,14 +192,17 @@ p2 = [p2_1,p2_2] # list of 2nd order basis splines
 
 # 3rd order splines
 def p3_1(offsets):
+	'''Get third order hermite spline, index 1, at the given coordinate offset'''
 	offsets = offsets*sign(offsets)
 	return (1-offsets)**3*(1+3*offsets+6*offsets**2)
 
 def p3_2(offsets):
+	'''Get third order hermite spline, index 2, at the given coordinate offset'''
 	abs_offsets = offsets*sign(offsets)
 	return sign(offsets)*(1-abs_offsets)**3*(abs_offsets+3*abs_offsets**2)*2
 
 def p3_3(offsets):
+	'''Get third order hermite spline, index 3, at the given coordinate offset'''
 	offsets = offsets*sign(offsets)
 	return (1-offsets)**3*(0.5*offsets**2)*16
 
@@ -200,33 +210,42 @@ p3 = [p3_1,p3_2,p3_3] # list of 3rd order basis splines
 
 # 4th order splines
 def p4_1(offsets):
+	'''Get fourth order hermite spline, index 1, at the given coordinate offset'''
 	return (offsets-1)**4*(1+4*offsets+10*offsets**2+20*offsets**3)*heaviside(offsets)+(-offsets-1)**4*(1-4*offsets+10*offsets**2-20*offsets**3)*heaviside(-offsets)
 
 def p4_2(offsets):
+	'''Get fourth order hermite spline, index 2, at the given coordinate offset'''
 	return ((offsets-1)**4*(1*offsets+4*offsets**2+10*offsets**3)*heaviside(offsets)+(-offsets-1)**4*(1*offsets-4*offsets**2+10*offsets**3)*heaviside(-offsets))*4
 
 def p4_3(offsets):
+	'''Get fourth order hermite spline, index 3, at the given coordinate offset'''
 	return ((offsets-1)**4*(0.5*offsets**2+2*offsets**3)*heaviside(offsets)+(-offsets-1)**4*(0.5*offsets**2-2*offsets**3)*heaviside(-offsets))*32
 
 def p4_4(offsets):
+	'''Get fourth order hermite spline, index 4, at the given coordinate offset'''
 	return ((offsets-1)**4*(1.0/6.0*offsets**3)*heaviside(offsets)+(-offsets-1)**4*(1.0/6.0*offsets**3)*heaviside(-offsets))*512
 
 p4 = [p4_1,p4_2,p4_3,p4_4]
 
 # 5th order splines
 def p5_1(offsets):
+	'''Get fifth order hermite spline, index 1, at the given coordinate offset'''
 	return ((offsets-1)**5*(-1-5*offsets-15*offsets**2-35*offsets**3-70*offsets**4)*heaviside(offsets)+(-offsets-1)**5*(-1+5*offsets-15*offsets**2+35*offsets**3-70*offsets**4)*heaviside(-offsets))
 
 def p5_2(offsets):
+	'''Get fifth order hermite spline, index 2, at the given coordinate offset'''
 	return ((offsets-1)**5*(-1*offsets-5*offsets**2-15*offsets**3-35*offsets**4)*heaviside(offsets)+(-offsets-1)**5*(-1*offsets+5*offsets**2-15*offsets**3+35*offsets**4)*heaviside(-offsets))*4
 
 def p5_3(offsets):
+	'''Get fifth order hermite spline, index 3, at the given coordinate offset'''
 	return ((offsets-1)**5*(-0.5*offsets**2-2.5*offsets**3-7.5*offsets**4)*heaviside(offsets)+(-offsets-1)**5*(-0.5*offsets**2+2.5*offsets**3-7.5*offsets**4)*heaviside(-offsets))*32
 
 def p5_4(offsets):
+	'''Get fifth order hermite spline, index 4, at the given coordinate offset'''
 	return ((offsets-1)**5*(-0.5/3.0*offsets**3-2.5/3.0*offsets**4)*heaviside(offsets)+(-offsets-1)**5*(-0.5/3.0*offsets**3+2.5/3.0*offsets**4)*heaviside(-offsets))*512
 
 def p5_5(offsets):
+	'''Get fifth order hermite spline, index 5, at the given coordinate offset'''
 	return ((offsets-1)**5*(-2.5/6.0*offsets**4)*heaviside(offsets)+(-offsets-1)**5*(-2.5/6.0*offsets**4)*heaviside(-offsets))*1024
 
 p5 = [p5_1,p5_2,p5_3,p5_4,p5_5]
