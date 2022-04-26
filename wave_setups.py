@@ -32,7 +32,7 @@ o---o---o---o
 class Dataset():
 	
 	def generate_random_z_cond(self,time): # modulate x/y/t with random sin / cos waves => used in "simple" environment
-		
+		'''Generates a random boundary condition'''
 		return torch.sin(self.x_mesh*0.02+torch.cos(torch.cos(self.x_mesh*0.011*(np.sin(time*0.00221)+2))*np.cos(time*0.00321)*3))
 	
 	def __init__(self,w,hidden_size,resolution_factor=4,batch_size=100,n_samples=1,dataset_size=1000,average_sequence_length=5000,interactive=False,max_speed=10,brown_damping=0.9995,brown_velocity=0.05,init_velocity=0,dt=1,types=["simple"]):
@@ -93,6 +93,7 @@ class Dataset():
 			self.reset_env(i)
 	
 	def reset_env(self,index):
+		'''Resets the boundary conditions / environment'''
 		#print(f"reset env {index}")
 		self.hidden_states[index] = 0
 		self.z_cond_full_res[index] = 0
@@ -211,6 +212,7 @@ class Dataset():
 		self.z_stiffness[index:(index+1)] = f.avg_pool1d(self.z_stiffness_full_res[index:(index+1)], self.resolution_factor)
 	
 	def update_env(self,index):
+		'''updates the boundary conditions / environment for the next time step'''
 		#CODO: introduce "layers" in between time-steps (e.g. for dt/2)
 		
 		if self.env_info[index]["type"] == "simple":
@@ -392,16 +394,14 @@ class Dataset():
 		
 		self.indices = np.random.choice(self.dataset_size,self.batch_size)
 		self.update_envs(self.indices)
-		"""
-		grid_offsets = torch.rand(self.batch_size,3,1,1) # atm: ignore temporal offset, as we are only looking at steady environments
-		sample_z_cond = torch.zeros(self.batch_size,2,self.w,self.h)
-		sample_z_mask = torch.zeros(self.batch_size,1,self.w,self.h)
-		for i,index in enumerate(self.indices):
-			x_offset = min(int(self.resolution_factor*grid_offsets[i,0]),self.resolution_factor-1)
-			y_offset = min(int(self.resolution_factor*grid_offsets[i,1]),self.resolution_factor-1)
-			sample_z_cond[i] = self.z_cond_full_res[index,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor]
-			sample_z_mask[i] = self.z_mask_full_res[index,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor]
-		"""
+		# grid_offsets = torch.rand(self.batch_size,3,1,1) # atm: ignore temporal offset, as we are only looking at steady environments
+		# sample_z_cond = torch.zeros(self.batch_size,2,self.w,self.h)
+		# sample_z_mask = torch.zeros(self.batch_size,1,self.w,self.h)
+		# for i,index in enumerate(self.indices):
+		# 	x_offset = min(int(self.resolution_factor*grid_offsets[i,0]),self.resolution_factor-1)
+		# 	y_offset = min(int(self.resolution_factor*grid_offsets[i,1]),self.resolution_factor-1)
+		# 	sample_z_cond[i] = self.z_cond_full_res[index,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor]
+		# 	sample_z_mask[i] = self.z_mask_full_res[index,:,x_offset::self.resolution_factor,y_offset::self.resolution_factor]
 		grid_offsets = []
 		sample_z_cond = []
 		sample_z_mask = []
@@ -418,7 +418,8 @@ class Dataset():
 		return self.z_cond[self.indices],self.z_mask[self.indices],self.hidden_states[self.indices], self.z_stiffness[self.indices], grid_offsets,sample_z_cond,sample_z_mask, sample_z_stiffness
 	
 	def tell(self,hidden_state):
-		
+		'''Updates the dataset with the new hidden state. Propagates time step
+		   If the time divides the sequence length / batch size, environment gets reset.'''
 		#CODO: do not update the state at every step...
 		self.hidden_states[self.indices,:,:] = hidden_state.detach()
 	

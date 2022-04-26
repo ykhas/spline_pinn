@@ -82,20 +82,20 @@ def params():
 	
 	return params
 
-def get_hyperparam_fluid(params):
-	return f"fluid net {params.net}; hs {params.hidden_size}; ov {params.orders_v}; op {params.orders_p}; mu {params.mu}; rho {params.rho}; dt {params.dt};"
-
 def get_hyperparam_wave(params):
+	'''Gets wave model hyperparameter file name'''
 	return f"wave net {params.net}; hs {params.hidden_size}; oz {params.orders_z}; stiffness {params.stiffness}; damping {params.damping}; dt {params.dt};"
 
 params = params()
 
 def toCuda(x):
+	'''Moves tensor to cuda device if available'''
 	if type(x) is tuple or type(x) is list:
 		return [toCuda(xi) if params.cuda else xi for xi in x]
 	return x.cuda() if params.cuda else x
 
 def toCpu(x):
+	'''Moves tensor to cpu device'''
 	if type(x) is tuple:
 		return [xi.detach().cpu() for xi in x]
 	return x.detach().cpu()
