@@ -1,18 +1,8 @@
-# Spline-PINN
-Approaching PDEs without Data using Fast, Physics-Informed Hermite-Spline CNNs
+# Extensions to Spline-PINN for HIFU Simulation
 
-![image](plots/flow_hi.png)
-![image](plots/flow_re_100.png)
-![image](plots/flow_re_10000.png)
-![image](plots/wave_eq.png)
+The work in this repository is an extension of Spline-PINN, with the aim of adapting it for HIFU simulation. The relevant publications for that work are listed below.
 
-Hi!
-
-In this repository, we provide you with code and pretrained models to reproduce the results of our paper on Spline-PINNs.
-Furthermore, we provide code so you can train your own PDE models for the incompressible Navier-Stokes and wave equation without any ground truth data.
-
-
-## Publications
+## Related Publications
 
 Comprehensive background information is provided in our paper:  
 [Spline-PINN: Approaching PDEs without Data using Fast, Physics-Informed Hermite-Spline CNNs](https://arxiv.org/abs/2109.07143)  
@@ -45,50 +35,7 @@ conda install matplotlib statsmodels natsort tensorboard pyevtk
 pip install opencv-python
 ```
 
-Finally, ensure you have [git-lfs](https://git-lfs.github.com/) installed and enabled for your user account and download this github repository.
-
-... and you're done :)  
-The installation was tested on Ubuntu 18.04, but other operating systems should work as well. 
-If you have troubles with cuda (e.g. because you don't have a GPU at hand), use the "\-\-cuda=f" option for all of the following python scripts.
-
-## Interactive Demo and Visualization
-
-We provide you with several pretrained models so you can directly start to play around with our interactive demos.
-
-### Fluid demo
-
-The first model was trained with mu=0.1 and rho=10. To start the interactive fluid simulation, run:
-
-```
-python fluid_test.py --net=Fluid_model --hidden_size=50 --mu=0.1 --rho=10
-```
-
-By pressing the following keys, you can:
-
-- "n": start a new (random) simulation  
-- "p": create a visualization of the current fluid state with matplotlib  
-- "q": quit the simulation  
-
-There are several options to interact with the simulation:
-
-- By pressing the left mouse button, obstacles can be moved within the fluid domain.
-- The following keyboard commands can be used to:  
-"x": increase the flow speed  
-"y": decrease the flow speed  
-"w": write new domain boundaries where the mouse is located  
-"e": erase domain boundaries where the mouse is located  
-"s": increase the angular velocity (only for spinning cylinder)  
-"a": decrease the angular velocity (only for spinning cylinder)  
-
-If you want to create your own custom obstacles, please have a look into fluid_test.py and fluid_setup.py.
-
-In case you want to try out further viscosities and densities, we provide you with the following additional pretrained models:
-
-- (mu=1, rho=1)
-- (mu=0.1, rho=1)
-- (mu=0.01, rho=10)
-
-If you want to train your own models with arbitrary viscosities and densities, please have a look below at the training section.
+The installation was tested on Ubuntu 18.04, but other operating systems should work as well. This code works best on machines with CUDA capable GPUs.
 
 ### Wave demo
 
@@ -149,16 +96,3 @@ As for the fluid model, you can get more information about training parameters a
 python wave_train.py --help  
 tensorboard --logdir=Logger/tensorboard
 ```
-
-
-## License
-
-Feel free to clone this repository and modify it! If it's of good use for you, please consider giving this repository a star and citing our publications.  
-If there are questions left, just contact us: wandeln@cs.uni-bonn.de
-
-## References
-
-The U-Net implementation is for the most part taken from https://github.com/milesial/Pytorch-UNet/ - an Open Source implementation of:  
-
-[U-Net: Convolutional Networks for Biomedical Image Segmentation](https://arxiv.org/abs/1505.04597)  
-*Olaf Ronneberger, Philipp Fischer, Thomas Brox*, MICCAI, 2015
