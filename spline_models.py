@@ -117,6 +117,8 @@ class wave_model(nn.Module):
 			self.output_scaler_wave = toCuda(torch.Tensor([5,0.5,0.05,0.5, 0.05,0.05,0.05,0.05,0.05, 5,0.5,0.05,0.5, 0.05,0.05,0.05,0.05,0.05]).unsqueeze(0).unsqueeze(2).unsqueeze(3))
 		elif self.hidden_state_size == 8: # if orders_z = 1
 			self.output_scaler_wave = toCuda(torch.Tensor([5,0.5,0.5,0.05, 5,0.5,0.5,0.05]).unsqueeze(0).unsqueeze(2).unsqueeze(3))
+		elif self.hidden_state_size == 6:
+			self.output_scaler_wave = toCuda(torch.tensor([5, 0.5, 0.05, 5, 0.5, 0.05]).unsqueeze(0).unsqueeze(2))
 		
 	
 	def forward(self,hidden_state,v_cond,v_mask, stiffness):
@@ -136,7 +138,7 @@ class wave_model(nn.Module):
 		out = self.conv3(x)
 		
 		# residual connections
-		out[:,:,:] = torch.tanh((out[:,:,:]+hidden_state[:,:,:]))
+		out[:,:,:] = torch.tanh((out[:,:,:]+hidden_state[:,:,:]) / self.output_scaler_wave)
 		
 		return out
 

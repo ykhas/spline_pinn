@@ -101,7 +101,7 @@ class Dataset():
 		self.z_mask_full_res[index,:,-(self.padding_x*self.resolution_factor):(self.padding_x*self.resolution_factor)] = 0
 		self.z_stiffness_full_res[index] = random.random()
 		self.split_indices[index] = torch.randint(0, self.w_full_res, size=(1,1))
-		self.z_stiffness_full_res[index,:,int(self.split_indices[index]):] = random.random()
+		self.z_stiffness_full_res[index,:,int(self.split_indices[index]):] = random.random()*0.13 + 0.87
 		
 		type = np.random.choice(self.types)
 		self.env_info[index]["type"] = type

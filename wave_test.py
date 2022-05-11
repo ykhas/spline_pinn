@@ -15,9 +15,9 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 #### UPDATE THESE VALUES TO CHANGE POSITION OF INTERFACE AND ASSOCIATED STIFFNESS CONST. ####
 interface_location = 36
 z_stiffness = torch.ones((1,1,99)).to(torch.device("cuda"))
-z_stiffness[:,:,:interface_location] = 0.01
-z_stiffness[:,:,interface_location] = 0.5
-z_stiffness[:,:,interface_location+1:] = 0.99
+z_stiffness[:,:,:interface_location] = 0.87
+z_stiffness[:,:,interface_location] = 0.935
+z_stiffness[:,:,interface_location+1:] = 1.0
 
 
 
@@ -33,7 +33,7 @@ params.width = 100 if params.width is None else params.width
 resolution_factor = params.resolution_factor
 orders_z = [params.orders_z]
 z_size = np.prod([i+1 for i in orders_z])
-types = ["oscillator"]# further types: "box","simple","oscillator"
+types = ["box"]# further types: "box","simple","oscillator"
 
 # initialize dataset
 dataset = Dataset(params.width,hidden_size=2*z_size,interactive=True,batch_size=1,n_samples=params.n_samples,dataset_size=1,average_sequence_length=params.average_sequence_length,types=types,dt=params.dt,resolution_factor=resolution_factor)
